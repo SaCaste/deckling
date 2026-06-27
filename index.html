@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CardSmith — Card Maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Work+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,500&family=Cinzel:wght@400;600;700&family=Bebas+Neue&family=Roboto+Slab:wght@400;500;700&family=Caveat:wght@500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{font-family:'Plus Jakarta Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden;}
+  #root{height:100vh;}
+  ::-webkit-scrollbar{width:9px;height:9px;}
+  ::-webkit-scrollbar-thumb{background:rgba(130,140,135,.35);border-radius:6px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  input,button,textarea,select{font-family:inherit;}
+  input:focus,textarea:focus{outline:none;}
+  .cmsplash{display:flex;height:100vh;align-items:center;justify-content:center;color:#9aa;font-weight:700;letter-spacing:.5px;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+class CardMaker extends React.Component {
+  h = React.createElement;
+  B = 3; SAFE = 3.5;
+  imgCache = {};
+  history = { past: [], future: [] };
+
+  THEMES = {
+    studio: { bg:'#eef0ec', panel:'#ffffff', panel2:'#f7f8f5', border:'#e2e5df', line:'#eceee9', text:'#1d2a24', sub:'#74837b', faint:'#9aa79f', canvas:'#dde2dc', chip:'#f0f2ee', input:'#f6f7f4', shadow:'0 1px 2px rgba(20,40,30,.06),0 8px 24px rgba(20,40,30,.06)' },
+    warm:   { bg:'#ece2d2', panel:'#fbf6ec', panel2:'#f4ebd9', border:'#e0d3bd', line:'#ebe0cd', text:'#3a3026', sub:'#8a7a62', faint:'#a99683', canvas:'#e3d7c1', chip:'#f0e7d4', input:'#f3ead8', shadow:'0 1px 2px rgba(80,60,30,.07),0 8px 24px rgba(80,60,30,.08)' },
+    dark:   { bg:'#15191b', panel:'#1c2226', panel2:'#222a2f', border:'#2d363c', line:'#262f34', text:'#eef2f0', sub:'#8fa099', faint:'#5f6e68', canvas:'#0f1315', chip:'#283036', input:'#222a2f', shadow:'0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.4)' }
+  };
+
+  FONTS = [
+    { id:'work', label:'Work Sans', css:"'Work Sans',sans-serif" },
+    { id:'playfair', label:'Playfair Display', css:"'Playfair Display',serif" },
+    { id:'cinzel', label:'Cinzel', css:"'Cinzel',serif" },
+    { id:'bebas', label:'Bebas Neue', css:"'Bebas Neue',sans-serif" },
+    { id:'slab', label:'Roboto Slab', css:"'Roboto Slab',serif" },
+    { id:'caveat', label:'Caveat', css:"'Caveat',cursive" },
+    { id:'mono', label:'Space Mono', css:"'Space Mono',monospace" }
+  ];
+
+  TYPES = {
+    poker: { label:'Poker / Playing', w:63, h:88 },
+    tarot: { label:'Tarot / Large', w:70, h:120 },
+    mini:  { label:'Mini / Token', w:44, h:67 },
+    custom:{ label:'Custom', w:63, h:88 }
+  };
+
+  ICONS = {
+    heart:'M12 21s-7.4-4.7-7.4-10.4A4.6 4.6 0 0 1 12 6.1a4.6 4.6 0 0 1 7.4 4.5C19.4 16.3 12 21 12 21z',
+    star:'M12 3l2.5 5.5 6 .6-4.5 4 1.3 5.9L12 16.9 6.2 19l1.3-5.9-4.5-4 6-.6z',
+    shield:'M12 3l7 2.4v5.4c0 4.5-3 7.9-7 9.6-4-1.7-7-5.1-7-9.6V5.4z',
+    sword:'M6 3l4.5 4.5 6 6 1.4-1.4 1.6 1.6-1 1 1 1-2 2-1-1-1 1-1.6-1.6 1.4-1.4-6-6L4.6 4.4 6 3zM4 16.5l3.5 3.5-1.5.5-2-.5-.5-2 .5-1.5z',
+    coin:'M12 2.6a9.4 9.4 0 1 0 0 18.8 9.4 9.4 0 0 0 0-18.8zM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10z',
+    gem:'M6 3h12l3 5-9 13L3 8z',
+    flame:'M13 2c.5 3-2 4.5-2 7 0 1 .8 1.8 1.8 1.8 1.5 0 2.2-1.3 2.2-1.3.7 1 1 2 1 3.2A6 6 0 0 1 6 16c0-3.6 3-5.5 4-8 .6-1.5.4-4 3-6z',
+    skull:'M12 2.5A8 8 0 0 0 6.5 16.4V19a1.5 1.5 0 0 0 1.5 1.5h1V18h1v2.5h4V18h1v2.5h1A1.5 1.5 0 0 0 17.5 19v-2.6A8 8 0 0 0 12 2.5zM9 11.5a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2zm6 0a1.6 1.6 0 1 1 0 3.2 1.6 1.6 0 0 1 0-3.2z',
+    crown:'M3 8l3.7 2.8L12 5l5.3 5.8L21 8l-1.6 11H4.6z',
+    bolt:'M13 2L4 14h6l-1 8 9-12h-6z',
+    drop:'M12 3c3 4 6 7 6 10.2A6 6 0 0 1 6 13.2C6 10 9 7 12 3z',
+    leaf:'M5 19C5 9.5 11 5 19.5 5c0 9.5-6 14-14.5 14z',
+    spade:'M12 3.2c-1 4-7 6-7 10A4 4 0 0 0 11.2 16C11 18 10.4 19.4 9 20.5h6c-1.4-1.1-2-2.5-2.2-4.5A4 4 0 0 0 19 13.2c0-4-6-6-7-10z',
+    club:'M12 3a3 3 0 0 1 2.6 4.5A3 3 0 1 1 14.8 13c.1 2.6.9 4.3 2.4 5.5H6.8c1.5-1.2 2.3-2.9 2.4-5.5A3 3 0 1 1 9.4 7.5 3 3 0 0 1 12 3z',
+    diamond:'M12 2.5l7 9.5-7 9.5-7-9.5z',
+    dice:'M5 3.5h14a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V5A1.5 1.5 0 0 1 5 3.5zM8 7.2a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zm8 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zM12 10.7a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zM8 14.2a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6zm8 0a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z'
+  };
+
+  UICONS = {
+    undo:'M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3',
+    redo:'M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3',
+    plus:'M12 5v14M5 12h14',
+    trash:'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
+    copy:'M9 9h10v10H9zM5 15H5V5h10',
+    up:'M12 19V5M6 11l6-6 6 6',
+    down:'M12 5v14M6 13l6 6 6-6',
+    image:'M4 5h16v14H4zM4 15l4-4 4 4 3-3 5 5M8.5 9.5a1.2 1.2 0 1 0 .01 0',
+    type:'M5 6V4h14v2M12 4v16M9 20h6',
+    square:'M5 5h14v14H5z',
+    circle:'M12 12m-8 0a8 8 0 1 0 16 0a8 8 0 1 0 -16 0',
+    line:'M5 19L19 5',
+    save:'M5 4h11l3 3v13H5zM8 4v5h7M8 14h8',
+    folder:'M4 6h6l2 2h8v10H4z',
+    download:'M12 4v11M7 11l5 5 5-5M5 20h14',
+    grid:'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+    eye:'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0',
+    sliders:'M4 8h9M17 8h3M4 16h3M11 16h9M13 6v4M7 14v4',
+    close:'M6 6l12 12M18 6L6 18',
+    alignL:'M4 6h16M4 10h10M4 14h16M4 18h10',
+    alignC:'M4 6h16M7 10h10M4 14h16M7 18h10',
+    alignR:'M4 6h16M10 10h10M4 14h16M10 18h10',
+    bold:'M7 5h6a3.4 3.4 0 0 1 0 7H7zM7 12h7a3.4 3.4 0 0 1 0 7H7z',
+    rotate:'M3.5 12a8.5 8.5 0 1 1 2.2 5.7M3.5 17v-4h4',
+    chev:'M6 9l6 6 6-6',
+    layers:'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5',
+    cards:'M8 4h11a1 1 0 0 1 1 1v11M5 7h11a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z',
+    table:'M4 5h16v14H4zM4 10h16M4 15h16M9 5v14',
+    paint:'M5 3h14v6H5zM7 9v8a2 2 0 0 0 2 2h2v-4h2v4h2a2 2 0 0 0 2-2V9',
+    star:'M12 3.2l2.5 5.5 6 .6-4.5 4 1.3 5.9L12 16.9 6.2 19l1.3-5.9-4.5-4 6-.6z'
+  };
+
+  state = {
+    theme:'studio', accent:'#10b981',
+    cards:[], selCard:null, selEl:null,
+    showBleed:true, showSafe:true, zoom:1,
+    stageW:900, stageH:640,
+    leftTab:'card', modal:null, batchText:'', toast:null
+  };
+
+  componentDidMount(){
+    const t = this.props.theme && this.THEMES[this.props.theme] ? this.props.theme : 'studio';
+    const accent = this.props.accent || '#10b981';
+    const cards = this.buildSample();
+    this.setState({ theme:t, accent, cards, selCard:cards[0].id, selEl:null }, ()=>this.measure());
+    this._mv = (e)=>this.onPointerMove(e);
+    this._mu = (e)=>this.onPointerUp(e);
+    this._rs = ()=>this.measure();
+    this._kd = (e)=>this.onKey(e);
+    window.addEventListener('pointermove', this._mv);
+    window.addEventListener('pointerup', this._mu);
+    window.addEventListener('resize', this._rs);
+    window.addEventListener('keydown', this._kd);
+  }
+  componentWillUnmount(){
+    window.removeEventListener('pointermove', this._mv);
+    window.removeEventListener('pointerup', this._mu);
+    window.removeEventListener('resize', this._rs);
+    window.removeEventListener('keydown', this._kd);
+  }
+  measure(){
+    if(this.stageEl){ this.setState({ stageW:this.stageEl.clientWidth, stageH:this.stageEl.clientHeight }); }
+  }
+  onKey(e){
+    const tag = (e.target && e.target.tagName) || '';
+    if(tag==='INPUT' || tag==='TEXTAREA') return;
+    const mod = e.metaKey || e.ctrlKey;
+    if(mod && e.key.toLowerCase()==='z'){ e.preventDefault(); if(e.shiftKey) this.redo(); else this.undo(); }
+    else if(mod && e.key.toLowerCase()==='y'){ e.preventDefault(); this.redo(); }
+    else if(mod && e.key.toLowerCase()==='d'){ e.preventDefault(); this.dupEl(); }
+    else if((e.key==='Delete'||e.key==='Backspace') && this.state.selEl){ e.preventDefault(); this.deleteEl(); }
+  }
+
+  th(){ return this.THEMES[this.state.theme]; }
+  ac(){ return this.state.accent; }
+  uid(){ this._n=(this._n||0)+1; return 'e'+this._n+'_'+Date.now().toString(36).slice(-4); }
+  clone(x){ return JSON.parse(JSON.stringify(x)); }
+  toast(m){ this.setState({toast:m}); clearTimeout(this._tt); this._tt=setTimeout(()=>this.setState({toast:null}),1900); }
+  curCard(){ return this.state.cards.find(c=>c.id===this.state.selCard) || null; }
+  curEl(){ const c=this.curCard(); if(!c) return null; return c.elements.find(e=>e.id===this.state.selEl) || null; }
+
+  pushHistory(key){
+    const now=Date.now();
+    if(key && key===this._hk && now-(this._ht||0)<700){ this._ht=now; return; }
+    this._hk=key; this._ht=now;
+    this.history.past.push(this.clone(this.state.cards));
+    if(this.history.past.length>60) this.history.past.shift();
+    this.history.future=[];
+  }
+  undo(){
+    if(!this.history.past.length) return;
+    this.history.future.push(this.clone(this.state.cards));
+    const cards=this.history.past.pop();
+    this.setState({ cards }, ()=>this.fixSel());
+  }
+  redo(){
+    if(!this.history.future.length) return;
+    this.history.past.push(this.clone(this.state.cards));
+    const cards=this.history.future.pop();
+    this.setState({ cards }, ()=>this.fixSel());
+  }
+  fixSel(){
+    let { selCard, selEl, cards } = this.state;
+    let c=cards.find(x=>x.id===selCard); if(!c){ c=cards[0]; selCard=c?c.id:null; }
+    if(c && !c.elements.find(e=>e.id===selEl)) selEl=null;
+    this.setState({ selCard, selEl });
+  }
+
+  setCards(cards){ this.setState({ cards }); }
+  patchCard(patch, hist){ if(hist) this.pushHistory(hist); const cards=this.state.cards.map(c=>c.id===this.state.selCard?{...c,...patch}:c); this.setState({cards}); }
+  updateSelEl(patch, opts){
+    opts=opts||{};
+    if(opts.hist!==false) this.pushHistory(opts.key||'edit');
+    const { selCard, selEl }=this.state;
+    const cards=this.state.cards.map(c=> c.id!==selCard ? c : { ...c, elements:c.elements.map(e=> e.id!==selEl ? e : {...e,...patch}) });
+    this.setState({ cards });
+  }
+
+  makeEl(type, c, extra){
+    const cx=c.w/2, cy=c.h/2, A=this.ac();
+    let base={ id:this.uid(), type, rotation:0, opacity:1 };
+    if(type==='text') base={ ...base, x:cx-22, y:cy-7, w:44, h:14, text:'New text', font:"'Work Sans',sans-serif", size:4.2, weight:600, color:'#1c2230', align:'center', italic:false, lineH:1.2, letter:0 };
+    if(type==='image') base={ ...base, x:cx-22, y:cy-22, w:44, h:44, src:null, fit:'cover', radius:1.5 };
+    if(type==='icon') base={ ...base, x:cx-9, y:cy-9, w:18, h:18, icon:'star', color:A };
+    if(type==='shape') base={ ...base, x:cx-16, y:cy-16, w:32, h:32, shape:'rect', fill:'#e8edf2', stroke:'#1c2230', strokeWidth:0, radius:2 };
+    return { ...base, ...(extra||{}) };
+  }
+  addEl(type, extra){
+    const c=this.curCard(); if(!c) return;
+    this.pushHistory('add');
+    const el=this.makeEl(type,c,extra);
+    const cards=this.state.cards.map(x=>x.id!==c.id?x:{...x, elements:[...x.elements, el]});
+    this.setState({ cards, selEl:el.id, leftTab:'card' });
+  }
+  deleteEl(){
+    const c=this.curCard(); if(!c||!this.state.selEl) return;
+    this.pushHistory('del');
+    const cards=this.state.cards.map(x=>x.id!==c.id?x:{...x, elements:x.elements.filter(e=>e.id!==this.state.selEl)});
+    this.setState({ cards, selEl:null });
+  }
+  dupEl(){
+    const c=this.curCard(); const el=this.curEl(); if(!c||!el) return;
+    this.pushHistory('dupel');
+    const ne={...this.clone(el), id:this.uid(), x:el.x+4, y:el.y+4};
+    const idx=c.elements.findIndex(e=>e.id===el.id);
+    const els=[...c.elements]; els.splice(idx+1,0,ne);
+    const cards=this.state.cards.map(x=>x.id!==c.id?x:{...x, elements:els});
+    this.setState({ cards, selEl:ne.id });
+  }
+  layer(dir){
+    const c=this.curCard(); const el=this.curEl(); if(!c||!el) return;
+    this.pushHistory('layer');
+    let els=[...c.elements]; const i=els.findIndex(e=>e.id===el.id);
+    els.splice(i,1);
+    let j = dir==='front'?els.length : dir==='back'?0 : dir==='up'?Math.min(els.length,i+1) : Math.max(0,i-1);
+    els.splice(j,0,el);
+    const cards=this.state.cards.map(x=>x.id!==c.id?x:{...x, elements:els});
+    this.setState({ cards });
+  }
+
+  setType(id){
+    const c=this.curCard(); if(!c) return;
+    this.pushHistory('type');
+    const t=this.TYPES[id];
+    const patch = id==='custom' ? { typeId:id } : { typeId:id, w:t.w, h:t.h };
+    this.patchCard(patch, null);
+  }
+  setBg(patch){ const c=this.curCard(); if(!c) return; this.patchCard({ bg:{...c.bg, ...patch} }, 'bg'); }
+  setBorder(patch){ const c=this.curCard(); if(!c) return; this.patchCard({ border:{...c.border, ...patch} }, 'border'); }
+
+  blankCard(typeId, w, h){
+    const t=this.TYPES[typeId]||this.TYPES.poker;
+    return { id:this.uid(), name:'Card', qty:1, typeId, w:w||t.w, h:h||t.h, bg:{type:'solid', color:'#ffffff', from:'#ffffff', to:'#dfe6ee', angle:135}, border:{width:0, color:'#1c2230', radius:3}, elements:[] };
+  }
+  addCard(){
+    const ref=this.curCard();
+    const c=this.blankCard(ref?ref.typeId:'poker', ref?ref.w:null, ref?ref.h:null);
+    this.pushHistory('addcard');
+    this.setState({ cards:[...this.state.cards, c], selCard:c.id, selEl:null });
+  }
+  dupCard(){
+    const c=this.curCard(); if(!c) return;
+    this.pushHistory('dupcard');
+    const nc={...this.clone(c), id:this.uid(), name:c.name+' copy'};
+    nc.elements=nc.elements.map(e=>({...e,id:this.uid()}));
+    const i=this.state.cards.findIndex(x=>x.id===c.id);
+    const cards=[...this.state.cards]; cards.splice(i+1,0,nc);
+    this.setState({ cards, selCard:nc.id, selEl:null });
+  }
+  delCard(id){
+    if(this.state.cards.length<=1){ this.toast('Keep at least one card'); return; }
+    this.pushHistory('delcard');
+    const cards=this.state.cards.filter(c=>c.id!==id);
+    const sel = id===this.state.selCard ? cards[0].id : this.state.selCard;
+    this.setState({ cards, selCard:sel, selEl:null });
+  }
+  moveCard(id, dir){
+    const i=this.state.cards.findIndex(c=>c.id===id);
+    const j=i+dir; if(j<0||j>=this.state.cards.length) return;
+    this.pushHistory('movecard');
+    const cards=[...this.state.cards]; const [x]=cards.splice(i,1); cards.splice(j,0,x);
+    this.setState({ cards });
+  }
+  setQty(id, q){ const cards=this.state.cards.map(c=>c.id!==id?c:{...c, qty:Math.max(1,Math.min(99,q||1))}); this.setState({cards}); }
+  selectCard(id){ this.setState({ selCard:id, selEl:null }); }
+
+  templates(){
+    const A=this.ac();
+    const ink='#1f2733', mut='#5a6675', panel='#eef2f6', panel2='#e4ebf2';
+    const T={};
+    const mk=(W,H)=>{
+      const P=(fx,fy,fw,fh)=>({x:+(fx*W).toFixed(1),y:+(fy*H).toFixed(1),w:+(fw*W).toFixed(1),h:+(fh*H).toFixed(1)});
+      const id=()=>this.uid();
+      const sz=(f)=>+(H*f).toFixed(2);
+      return {P,id,sz,W,H};
+    };
+    T.classic=(W,H)=>{ const {P,id,sz}=mk(W,H); return [
+      {id:id(),type:'shape',shape:'rect',...P(.06,.045,.88,.092),fill:A,stroke:'#000',strokeWidth:0,radius:2,rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.08,.05,.84,.082),text:'Card Title',font:"'Playfair Display',serif",size:sz(.052),weight:700,color:'#ffffff',align:'left',italic:false,lineH:1.1,letter:0,rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.62,.05,.3,.082),text:'5',font:"'Cinzel',serif",size:sz(.06),weight:700,color:'#ffffff',align:'right',italic:false,lineH:1,letter:0,rotation:0,opacity:1},
+      {id:id(),type:'image',...P(.06,.155,.88,.42),src:null,fit:'cover',radius:1.2,rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.06,.585,.88,.048),text:'Creature — Type',font:"'Work Sans',sans-serif",size:sz(.03),weight:600,color:mut,align:'left',italic:true,lineH:1,letter:.2,rotation:0,opacity:1},
+      {id:id(),type:'shape',shape:'rect',...P(.06,.64,.88,.3),fill:panel,stroke:'#cfd8e2',strokeWidth:.3,radius:2,rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.1,.665,.8,.25),text:'Rules text and flavor go here. Drag any element to reposition, resize from the corners.',font:"'Work Sans',sans-serif",size:sz(.027),weight:400,color:ink,align:'left',italic:false,lineH:1.3,letter:0,rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.06,.95,.5,.04),text:'001 / 060',font:"'Space Mono',monospace",size:sz(.022),weight:400,color:mut,align:'left',italic:false,lineH:1,letter:0,rotation:0,opacity:1}
+    ];};
+    T.stat=(W,H)=>{ const {P,id,sz}=mk(W,H); const chip=(i,lab,val,col)=>([
+      {id:id(),type:'shape',shape:'rect',...P(.06+i*.315,.78,.275,.155),fill:'#ffffff',stroke:col,strokeWidth:.5,radius:2,rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.06+i*.315,.795,.275,.05),text:lab,font:"'Work Sans',sans-serif",size:sz(.024),weight:700,color:col,align:'center',italic:false,lineH:1,letter:.5,rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.06+i*.315,.83,.275,.09),text:val,font:"'Cinzel',serif",size:sz(.06),weight:700,color:ink,align:'center',italic:false,lineH:1,letter:0,rotation:0,opacity:1}
+    ]);
+      return [
+      {id:id(),type:'text',...P(.06,.05,.88,.08),text:'Unit Name',font:"'Cinzel',serif",size:sz(.05),weight:700,color:ink,align:'center',italic:false,lineH:1,letter:.5,rotation:0,opacity:1},
+      {id:id(),type:'image',...P(.1,.15,.8,.5),src:null,fit:'cover',radius:2,rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.06,.67,.88,.06),text:'A short description of this unit.',font:"'Work Sans',sans-serif",size:sz(.026),weight:400,color:mut,align:'center',italic:true,lineH:1.2,letter:0,rotation:0,opacity:1},
+      ...chip(0,'ATK','4','#c0492b'), ...chip(1,'DEF','3','#2f6fb0'), ...chip(2,'COST','2','#caa23a')
+    ];};
+    T.playing=(W,H)=>{ const {P,id,sz}=mk(W,H); return [
+      {id:id(),type:'text',...P(.05,.04,.2,.1),text:'A',font:"'Playfair Display',serif",size:sz(.08),weight:700,color:'#b3261e',align:'center',italic:false,lineH:1,letter:0,rotation:0,opacity:1},
+      {id:id(),type:'icon',...P(.06,.13,.13,.09),icon:'heart',color:'#b3261e',rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.75,.86,.2,.1),text:'A',font:"'Playfair Display',serif",size:sz(.08),weight:700,color:'#b3261e',align:'center',italic:false,lineH:1,letter:0,rotation:180,opacity:1},
+      {id:id(),type:'icon',...P(.81,.78,.13,.09),icon:'heart',color:'#b3261e',rotation:180,opacity:1},
+      {id:id(),type:'icon',...P(.3,.32,.4,.36),icon:'heart',color:'#b3261e',rotation:0,opacity:1}
+    ];};
+    T.minimal=(W,H)=>{ const {P,id,sz}=mk(W,H); return [
+      {id:id(),type:'icon',...P(.36,.28,.28,.22),icon:'gem',color:A,rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.1,.56,.8,.1),text:'TITLE',font:"'Bebas Neue',sans-serif",size:sz(.075),weight:400,color:ink,align:'center',italic:false,lineH:1,letter:2,rotation:0,opacity:1},
+      {id:id(),type:'shape',shape:'line',...P(.38,.69,.24,.01),fill:'#000',stroke:A,strokeWidth:1,radius:0,rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.15,.72,.7,.06),text:'subtitle text',font:"'Work Sans',sans-serif",size:sz(.026),weight:500,color:mut,align:'center',italic:false,lineH:1.2,letter:1,rotation:0,opacity:1}
+    ];};
+    T.character=(W,H)=>{ const {P,id,sz}=mk(W,H); return [
+      {id:id(),type:'shape',shape:'rect',...P(.06,.05,.88,.58),fill:panel2,stroke:'#000',strokeWidth:0,radius:2,rotation:0,opacity:1},
+      {id:id(),type:'image',...P(.08,.07,.84,.54),src:null,fit:'cover',radius:1.5,rotation:0,opacity:1},
+      {id:id(),type:'shape',shape:'rect',...P(.04,.56,.92,.1),fill:A,stroke:'#000',strokeWidth:0,radius:2,rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.06,.575,.88,.075),text:'Character Name',font:"'Cinzel',serif",size:sz(.045),weight:700,color:'#fff',align:'center',italic:false,lineH:1,letter:.5,rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.08,.7,.84,.05),text:'Class · Faction',font:"'Work Sans',sans-serif",size:sz(.028),weight:600,color:mut,align:'center',italic:false,lineH:1,letter:.5,rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.09,.76,.82,.18),text:'Ability: describe what this character can do here.',font:"'Work Sans',sans-serif",size:sz(.027),weight:400,color:ink,align:'center',italic:false,lineH:1.3,letter:0,rotation:0,opacity:1}
+    ];};
+    T.spell=(W,H)=>{ const {P,id,sz}=mk(W,H); return [
+      {id:id(),type:'text',...P(.06,.05,.7,.08),text:'Spell Name',font:"'Playfair Display',serif",size:sz(.05),weight:700,color:ink,align:'left',italic:false,lineH:1,letter:0,rotation:0,opacity:1},
+      {id:id(),type:'shape',shape:'circle',...P(.74,.04,.2,.14),fill:A,stroke:'#000',strokeWidth:0,radius:0,rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.74,.06,.2,.1),text:'3',font:"'Cinzel',serif",size:sz(.06),weight:700,color:'#fff',align:'center',italic:false,lineH:1,letter:0,rotation:0,opacity:1},
+      {id:id(),type:'icon',...P(.34,.24,.32,.28),icon:'bolt',color:A,rotation:0,opacity:1},
+      {id:id(),type:'shape',shape:'rect',...P(.06,.6,.88,.34),fill:panel,stroke:'#cfd8e2',strokeWidth:.3,radius:2,rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.1,.63,.8,.28),text:'Deal damage to target. Then describe the secondary effect of the spell.',font:"'Work Sans',sans-serif",size:sz(.028),weight:400,color:ink,align:'left',italic:false,lineH:1.3,letter:0,rotation:0,opacity:1}
+    ];};
+    T.token=(W,H)=>{ const {P,id,sz}=mk(W,H); return [
+      {id:id(),type:'shape',shape:'circle',...P(.18,.14,.64,.64*W/H),fill:panel,stroke:A,strokeWidth:1,radius:0,rotation:0,opacity:1},
+      {id:id(),type:'icon',...P(.3,.22,.4,.4*W/H),icon:'shield',color:A,rotation:0,opacity:1},
+      {id:id(),type:'text',...P(.08,.82,.84,.1),text:'TOKEN',font:"'Bebas Neue',sans-serif",size:sz(.07),weight:400,color:ink,align:'center',italic:false,lineH:1,letter:2,rotation:0,opacity:1}
+    ];};
+    return T;
+  }
+  templateList(){ return [
+    {id:'classic',label:'Classic TCG'},{id:'stat',label:'Stat Card'},{id:'playing',label:'Playing Card'},
+    {id:'minimal',label:'Minimalist'},{id:'character',label:'Character'},{id:'spell',label:'Spell'},
+    {id:'token',label:'Token'},{id:'blank',label:'Blank'} ]; }
+  applyTemplate(tid){
+    const c=this.curCard(); if(!c) return;
+    this.pushHistory('tmpl');
+    const els = tid==='blank' ? [] : this.templates()[tid](c.w,c.h);
+    const cards=this.state.cards.map(x=>x.id!==c.id?x:{...x, elements:els});
+    this.setState({ cards, selEl:null });
+  }
+
+  buildSample(){
+    const t=this.templates();
+    const mkCard=(typeId, tid, over)=>{
+      const ty=this.TYPES[typeId];
+      const c={ id:this.uid(), name:'Card', qty:1, typeId, w:ty.w, h:ty.h, bg:{type:'solid',color:'#ffffff',from:'#ffffff',to:'#e6ecf3',angle:135}, border:{width:1,color:'#1c2230',radius:3}, elements: tid==='blank'?[]:t[tid](ty.w,ty.h) };
+      return {...c, ...(over||{})};
+    };
+    const c1=mkCard('poker','classic'); c1.name='Ember Drake'; c1.qty=3;
+    c1.bg={type:'gradient',from:'#fff7ed',to:'#ffd9b8',angle:160,color:'#fff7ed'};
+    c1.elements[1].text='Ember Drake'; c1.elements[2].text='6';
+    c1.elements[4].text='Dragon — Fire'; c1.elements[6].text='Flying. When Ember Drake attacks, deal 1 damage to any target.';
+    const c2=mkCard('poker','stat'); c2.name='Stoneguard'; c2.qty=2;
+    const c3=mkCard('tarot','character'); c3.name='Mira the Bold';
+    c3.elements[3].text='Mira the Bold'; c3.elements[4].text='Ranger · Verdant Pact';
+    const c4=mkCard('poker','spell'); c4.name='Chain Bolt';
+    c4.elements[0].text='Chain Bolt'; c4.elements[2].text='3';
+    const c5=mkCard('mini','token'); c5.name='Goblin'; c5.qty=6; c5.elements[2].text='GOBLIN';
+    return [c1,c2,c3,c4,c5];
+  }
+
+  onElPointerDown(e, el){
+    if(e.button!==0) return;
+    e.stopPropagation();
+    this.setState({ selEl:el.id });
+    this.pushHistory('move_'+el.id);
+    this.drag={ mode:'move', sx:e.clientX, sy:e.clientY, ox:el.x, oy:el.y };
+  }
+  onHandleDown(e, el, corner){
+    e.stopPropagation(); e.preventDefault();
+    this.setState({ selEl:el.id });
+    this.pushHistory('resize_'+el.id);
+    this.drag={ mode:'resize', corner, sx:e.clientX, sy:e.clientY, ox:el.x, oy:el.y, ow:el.w, oh:el.h };
+  }
+  onRotateDown(e, el){
+    e.stopPropagation(); e.preventDefault();
+    this.setState({ selEl:el.id });
+    this.pushHistory('rotate_'+el.id);
+    const r=this.faceEl.getBoundingClientRect();
+    const s=this.scale, B=this.B;
+    this.drag={ mode:'rotate', cx:r.left+(el.x+B+el.w/2)*s, cy:r.top+(el.y+B+el.h/2)*s };
+  }
+  onPointerMove(e){
+    const d=this.drag; if(!d) return;
+    const s=this.scale;
+    if(d.mode==='move'){
+      const dx=(e.clientX-d.sx)/s, dy=(e.clientY-d.sy)/s;
+      this.updateSelEl({ x:+(d.ox+dx).toFixed(1), y:+(d.oy+dy).toFixed(1) }, {hist:false});
+    } else if(d.mode==='resize'){
+      let dx=(e.clientX-d.sx)/s, dy=(e.clientY-d.sy)/s;
+      let x=d.ox,y=d.oy,w=d.ow,hh=d.oh;
+      const cn=d.corner;
+      if(cn.includes('e')) w=d.ow+dx;
+      if(cn.includes('s')) hh=d.oh+dy;
+      if(cn.includes('w')){ w=d.ow-dx; x=d.ox+dx; }
+      if(cn.includes('n')){ hh=d.oh-dy; y=d.oy+dy; }
+      if(w<4){ if(cn.includes('w')) x=d.ox+d.ow-4; w=4; }
+      if(hh<4){ if(cn.includes('n')) y=d.oy+d.oh-4; hh=4; }
+      this.updateSelEl({ x:+x.toFixed(1), y:+y.toFixed(1), w:+w.toFixed(1), h:+hh.toFixed(1) }, {hist:false});
+    } else if(d.mode==='rotate'){
+      let ang=Math.atan2(e.clientY-d.cy, e.clientX-d.cx)*180/Math.PI+90;
+      if(e.shiftKey) ang=Math.round(ang/15)*15;
+      this.updateSelEl({ rotation:Math.round(ang) }, {hist:false});
+    }
+  }
+  onPointerUp(){ this.drag=null; }
+
+  ensureImages(cards){
+    const srcs=new Set();
+    cards.forEach(c=>c.elements.forEach(e=>{ if(e.type==='image'&&e.src) srcs.add(e.src); }));
+    const tasks=[...srcs].filter(s=>!this.imgCache[s]).map(s=>new Promise(res=>{
+      const img=new Image(); img.crossOrigin='anonymous';
+      img.onload=()=>{ this.imgCache[s]=img; res(); };
+      img.onerror=()=>{ res(); };
+      img.src=s;
+    }));
+    return Promise.all(tasks);
+  }
+  roundRectC(ctx,x,y,w,h,r){
+    r=Math.max(0,Math.min(r,Math.min(w,h)/2));
+    ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+  }
+  wrapLines(ctx,text,maxW){
+    const out=[];
+    String(text).split('\n').forEach(para=>{
+      const words=para.split(/\s+/); let cur='';
+      words.forEach(w=>{
+        const test=cur?cur+' '+w:w;
+        if(cur && ctx.measureText(test).width>maxW){ out.push(cur); cur=w; } else cur=test;
+      });
+      out.push(cur);
+    });
+    return out;
+  }
+  drawCard(card, ppm){
+    const B=this.B, W=card.w, H=card.h;
+    const pw=Math.round((W+2*B)*ppm), ph=Math.round((H+2*B)*ppm);
+    const cv=document.createElement('canvas'); cv.width=pw; cv.height=ph;
+    const ctx=cv.getContext('2d');
+    const rad=(card.border&&card.border.radius?card.border.radius:0)*ppm;
+    ctx.save();
+    if(card.bg.type==='gradient'){
+      const a=(card.bg.angle||135)*Math.PI/180;
+      const gx=Math.cos(a), gy=Math.sin(a);
+      const g=ctx.createLinearGradient(pw/2-gx*pw/2, ph/2-gy*ph/2, pw/2+gx*pw/2, ph/2+gy*ph/2);
+      g.addColorStop(0,card.bg.from); g.addColorStop(1,card.bg.to);
+      ctx.fillStyle=g;
+    } else if(card.bg.type==='none'){ ctx.fillStyle='#ffffff'; }
+    else ctx.fillStyle=card.bg.color;
+    ctx.fillRect(0,0,pw,ph);
+    ctx.restore();
+    card.elements.forEach(el=>{
+      ctx.save();
+      const ex=(el.x+B)*ppm, ey=(el.y+B)*ppm, ew=el.w*ppm, eh=el.h*ppm;
+      const cx=ex+ew/2, cy=ey+eh/2;
+      ctx.translate(cx,cy); ctx.rotate((el.rotation||0)*Math.PI/180); ctx.globalAlpha=el.opacity==null?1:el.opacity;
+      const x0=-ew/2, y0=-eh/2;
+      if(el.type==='text'){
+        const fpx=el.size*ppm;
+        ctx.font=`${el.italic?'italic ':''}${el.weight||400} ${fpx}px ${el.font}`;
+        ctx.fillStyle=el.color; ctx.textBaseline='top';
+        const lines=this.wrapLines(ctx,el.text,ew);
+        const lh=fpx*(el.lineH||1.2);
+        ctx.textAlign = el.align==='center'?'center':el.align==='right'?'right':'left';
+        const tx = el.align==='center'?0 : el.align==='right'?ew/2 : -ew/2;
+        lines.forEach((ln,i)=>{ ctx.fillText(ln, tx, y0+i*lh); });
+      } else if(el.type==='image'){
+        this.roundRectC(ctx,x0,y0,ew,eh,(el.radius||0)*ppm); ctx.clip();
+        const img=this.imgCache[el.src];
+        if(img && img.width){
+          const ir=img.width/img.height, br=ew/eh; let dw,dh;
+          if(el.fit==='contain'){ if(ir>br){dw=ew;dh=ew/ir;}else{dh=eh;dw=eh*ir;} }
+          else { if(ir>br){dh=eh;dw=eh*ir;}else{dw=ew;dh=ew/ir;} }
+          ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
+        } else { ctx.fillStyle='#e9edf1'; ctx.fillRect(x0,y0,ew,eh); }
+      } else if(el.type==='icon'){
+        const d=this.ICONS[el.icon]; if(d){
+          const sc=Math.min(ew,eh)/24;
+          ctx.translate(-12*sc + (ew-24*sc)/2, -12*sc + (eh-24*sc)/2);
+          ctx.scale(sc,sc); ctx.fillStyle=el.color;
+          const p=new Path2D(d); ctx.fill(p,'evenodd');
+        }
+      } else if(el.type==='shape'){
+        const sw=(el.strokeWidth||0)*ppm;
+        if(el.shape==='circle'){
+          ctx.beginPath(); ctx.ellipse(0,0,Math.max(0,ew/2-sw/2),Math.max(0,eh/2-sw/2),0,0,Math.PI*2);
+          if(el.fill && el.fill!=='none'){ ctx.fillStyle=el.fill; ctx.fill(); }
+          if(sw>0){ ctx.lineWidth=sw; ctx.strokeStyle=el.stroke; ctx.stroke(); }
+        } else if(el.shape==='line'){
+          ctx.beginPath(); ctx.moveTo(x0,0); ctx.lineTo(x0+ew,0);
+          ctx.lineWidth=Math.max(sw, eh); ctx.strokeStyle=el.stroke||el.fill; ctx.lineCap='round'; ctx.stroke();
+        } else {
+          this.roundRectC(ctx,x0+sw/2,y0+sw/2,ew-sw,eh-sw,(el.radius||0)*ppm);
+          if(el.fill && el.fill!=='none'){ ctx.fillStyle=el.fill; ctx.fill(); }
+          if(sw>0){ ctx.lineWidth=sw; ctx.strokeStyle=el.stroke; ctx.stroke(); }
+        }
+      }
+      ctx.restore();
+    });
+    if(card.border && card.border.width>0){
+      ctx.save();
+      this.roundRectC(ctx, B*ppm, B*ppm, W*ppm, H*ppm, rad);
+      ctx.lineWidth=card.border.width*ppm; ctx.strokeStyle=card.border.color; ctx.stroke();
+      ctx.restore();
+    }
+    return cv;
+  }
+
+  download(name, blob){
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click();
+    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+  }
+  async exportPNG(all){
+    const ppm=300/25.4;
+    const cards = all ? this.state.cards : [this.curCard()].filter(Boolean);
+    if(!cards.length) return;
+    this.toast('Rendering PNG…');
+    await this.ensureImages(cards);
+    for(let i=0;i<cards.length;i++){
+      const cv=this.drawCard(cards[i],ppm);
+      await new Promise(res=>cv.toBlob(b=>{ this.download((cards[i].name||'card')+'.png', b); res(); },'image/png'));
+      if(all) await new Promise(r=>setTimeout(r,250));
+    }
+    this.toast(all?'Exported '+cards.length+' PNGs':'PNG exported');
+  }
+  async exportPDF(pageId){
+    if(!window.jspdf){ this.toast('PDF engine still loading…'); return; }
+    const { jsPDF }=window.jspdf;
+    const ppm=300/25.4, B=this.B;
+    const pages={ letter:{w:215.9,h:279.4,fmt:'letter'}, a4:{w:210,h:297,fmt:'a4'} };
+    const pg=pages[pageId]||pages.letter;
+    const margin=8, mark=3.2, gap=0;
+    this.toast('Building PDF…');
+    await this.ensureImages(this.state.cards);
+    const list=[];
+    this.state.cards.forEach(c=>{ for(let q=0;q<(c.qty||1);q++) list.push(c); });
+    if(!list.length){ this.toast('No cards'); return; }
+    const pdf=new jsPDF({ unit:'mm', format:pg.fmt, orientation:'portrait' });
+    let placed=0, first=true;
+    let idx=0;
+    while(idx<list.length){
+      if(!first) pdf.addPage(pg.fmt,'portrait');
+      first=false;
+      let x=margin, y=margin, rowH=0;
+      while(idx<list.length){
+        const card=list[idx];
+        const cw=card.w+2*B, ch=card.h+2*B;
+        if(x+cw > pg.w-margin){ x=margin; y+=rowH+gap; rowH=0; }
+        if(y+ch > pg.h-margin){ break; }
+        const cv=this.drawCard(card,ppm);
+        const data=cv.toDataURL('image/png');
+        pdf.addImage(data,'PNG', x, y, cw, ch, undefined, 'FAST');
+        pdf.setDrawColor(40); pdf.setLineWidth(0.15);
+        const tx=x+B, ty=y+B, tr=x+B+card.w, tb=y+B+card.h;
+        const m=mark;
+        pdf.line(tx-m,ty, tx-0.5,ty); pdf.line(tx,ty-m, tx,ty-0.5);
+        pdf.line(tr+0.5,ty, tr+m,ty); pdf.line(tr,ty-m, tr,ty-0.5);
+        pdf.line(tx-m,tb, tx-0.5,tb); pdf.line(tx,tb+0.5, tx,tb+m);
+        pdf.line(tr+0.5,tb, tr+m,tb); pdf.line(tr,tb+0.5, tr,tb+m);
+        x+=cw+gap; rowH=Math.max(rowH,ch); idx++; placed++;
+      }
+    }
+    pdf.save('card-deck-'+pageId+'.pdf');
+    this.toast('PDF: '+placed+' cards exported');
+  }
+
+  saveJSON(){
+    const data={ app:'card-maker', version:1, cards:this.state.cards, theme:this.state.theme, accent:this.state.accent };
+    this.download('card-project.json', new Blob([JSON.stringify(data)],{type:'application/json'}));
+    this.toast('Project saved');
+  }
+  loadJSON(file){
+    const r=new FileReader();
+    r.onload=()=>{ try{
+      const d=JSON.parse(r.result);
+      if(!d.cards) throw 0;
+      this.history={past:[],future:[]}; this.imgCache={};
+      this.setState({ cards:d.cards, selCard:d.cards[0]&&d.cards[0].id, selEl:null, theme:d.theme||this.state.theme, accent:d.accent||this.state.accent });
+      this.toast('Project loaded');
+    }catch(e){ this.toast('Invalid project file'); } };
+    r.readAsText(file);
+  }
+  onUpload(file){
+    if(!file) return;
+    const r=new FileReader();
+    r.onload=()=>{
+      const src=r.result;
+      const el=this.curEl();
+      if(el && el.type==='image'){ this.updateSelEl({src},{key:'img'}); }
+      else { this.addEl('image',{src}); }
+      this.toast('Image added');
+    };
+    r.readAsDataURL(file);
+  }
+
+  batchGenerate(){
+    const c=this.curCard(); if(!c){ this.toast('Select a base card'); return; }
+    const txt=this.state.batchText.trim(); if(!txt){ this.toast('Paste a data table first'); return; }
+    const lines=txt.split(/\r?\n/).filter(l=>l.trim());
+    if(lines.length<2){ this.toast('Need a header row + 1+ data rows'); return; }
+    const delim = lines[0].indexOf('\t')>=0 ? '\t' : ',';
+    const headers=lines[0].split(delim).map(s=>s.trim());
+    this.pushHistory('batch');
+    const newCards=[];
+    for(let i=1;i<lines.length;i++){
+      const cells=lines[i].split(delim);
+      const row={}; headers.forEach((hh,j)=>row[hh]=(cells[j]||'').trim());
+      const nc=this.clone(c); nc.id=this.uid(); nc.name=row[headers[0]]||('Card '+i); nc.qty=row.qty?parseInt(row.qty)||1:1;
+      nc.elements=nc.elements.map(e=>{
+        const ne={...e, id:this.uid()};
+        if(ne.type==='text' && typeof ne.text==='string'){
+          ne.text=ne.text.replace(/\{\{\s*([\w]+)\s*\}\}/g,(m,k)=> row[k]!==undefined?row[k]:m);
+        }
+        if(ne.type==='image' && typeof ne.src==='string'){
+          const mm=ne.src.match(/^\{\{\s*([\w]+)\s*\}\}$/); if(mm && row[mm[1]]) ne.src=row[mm[1]];
+        }
+        return ne;
+      });
+      newCards.push(nc);
+    }
+    this.setState({ cards:[...this.state.cards, ...newCards], modal:null });
+    this.toast('Generated '+newCards.length+' cards');
+  }
+
+  uIcon(name, size, color, sw){
+    const h=this.h;
+    return h('svg',{width:size||18,height:size||18,viewBox:'0 0 24 24',fill:'none',stroke:color||'currentColor',strokeWidth:sw||1.7,strokeLinecap:'round',strokeLinejoin:'round'},
+      h('path',{d:this.UICONS[name]||''}));
+  }
+  gIcon(name, size, color){
+    const h=this.h;
+    return h('svg',{width:size,height:size,viewBox:'0 0 24 24',style:{display:'block'}},
+      h('path',{d:this.ICONS[name]||'',fill:color||'currentColor',fillRule:'evenodd'}));
+  }
+  iconBtn(icon, onClick, opts){
+    opts=opts||{}; const t=this.th(), h=this.h;
+    return h('button',{ onClick, title:opts.title, disabled:opts.disabled,
+      style:{ display:'inline-flex',alignItems:'center',justifyContent:'center', width:opts.w||32,height:32, borderRadius:8,
+        border:'1px solid '+(opts.active?this.ac():t.border), background:opts.active?this.ac():t.panel, color:opts.active?'#fff':(opts.disabled?t.faint:t.text),
+        cursor:opts.disabled?'default':'pointer', opacity:opts.disabled?.45:1, transition:'all .12s', padding:0, flex:'none' } },
+      typeof icon==='string'? this.uIcon(icon,17,'currentColor') : icon);
+  }
+  section(title, icon, children, extra){
+    const t=this.th(), h=this.h;
+    return h('div',{style:{padding:'14px 14px 4px'}},
+      h('div',{style:{display:'flex',alignItems:'center',gap:7,marginBottom:10}},
+        icon?h('span',{style:{color:t.faint,display:'flex'}},this.uIcon(icon,15,'currentColor')):null,
+        h('div',{style:{fontSize:11,fontWeight:700,letterSpacing:'.9px',textTransform:'uppercase',color:t.sub,flex:1}},title),
+        extra||null),
+      children);
+  }
+  field(label, ctrl){
+    const t=this.th(), h=this.h;
+    return h('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:8}},
+      h('div',{style:{fontSize:11.5,color:t.sub,width:62,flex:'none',fontWeight:600}},label),
+      h('div',{style:{flex:1,minWidth:0}},ctrl));
+  }
+  numInput(val, onChange, opts){
+    opts=opts||{}; const t=this.th(), h=this.h;
+    return h('input',{ type:'number', value:val, step:opts.step||1, min:opts.min, max:opts.max,
+      onChange:e=>onChange(parseFloat(e.target.value)),
+      style:{ width:'100%', background:t.input, border:'1px solid '+t.border, borderRadius:7, padding:'6px 8px', fontSize:12.5, color:t.text } });
+  }
+  textInput(val, onChange, opts){
+    opts=opts||{}; const t=this.th(), h=this.h;
+    return h('input',{ type:'text', value:val||'', placeholder:opts.ph,
+      onChange:e=>onChange(e.target.value),
+      style:{ width:'100%', background:t.input, border:'1px solid '+t.border, borderRadius:7, padding:'6px 8px', fontSize:12.5, color:t.text } });
+  }
+  colorInput(val, onChange){
+    const t=this.th(), h=this.h;
+    return h('div',{style:{display:'flex',gap:6,alignItems:'center'}},
+      h('label',{style:{width:30,height:28,borderRadius:7,border:'1px solid '+t.border,background:val,cursor:'pointer',flex:'none',position:'relative',overflow:'hidden'}},
+        h('input',{type:'color',value:(val&&val[0]==='#')?val:'#000000',onChange:e=>onChange(e.target.value),style:{opacity:0,width:'100%',height:'100%',cursor:'pointer'}})),
+      h('input',{type:'text',value:val,onChange:e=>onChange(e.target.value),
+        style:{flex:1,minWidth:0,background:t.input,border:'1px solid '+t.border,borderRadius:7,padding:'6px 8px',fontSize:12,color:t.text}}));
+  }
+  slider(val,min,max,step,onChange,opts){
+    opts=opts||{}; const t=this.th(), h=this.h;
+    const dec=(String(step).split('.')[1]||'').length;
+    const clamp=v=>{ if(isNaN(v)) return val; v=Math.max(min,Math.min(max,v)); return +v.toFixed(dec); };
+    return h('div',{style:{display:'flex',alignItems:'center',gap:8}},
+      h('input',{type:'range',min,max,step,value:val,onChange:e=>onChange(parseFloat(e.target.value)),
+        style:{flex:1,minWidth:0,accentColor:this.ac(),cursor:'pointer'}}),
+      h('div',{style:{position:'relative',flex:'none',width:opts.w||52}},
+        h('input',{type:'number',min,max,step,value:val,onChange:e=>onChange(clamp(parseFloat(e.target.value))),
+          style:{width:'100%',background:t.input,border:'1px solid '+t.border,borderRadius:7,padding:'5px '+(opts.suffix?'16px':'7px')+' 5px 7px',fontSize:11.5,color:t.text,textAlign:'right'}}),
+        opts.suffix?h('span',{style:{position:'absolute',right:7,top:'50%',transform:'translateY(-50%)',fontSize:10.5,color:t.faint,pointerEvents:'none'}},opts.suffix):null));
+  }
+  seg(options, val, onChange){
+    const t=this.th(), h=this.h;
+    return h('div',{style:{display:'flex',gap:3,background:t.input,border:'1px solid '+t.border,borderRadius:8,padding:3}},
+      options.map(o=>h('button',{key:o.v,onClick:()=>onChange(o.v),title:o.title,
+        style:{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:5,padding:'5px 4px',borderRadius:6,border:'none',
+          background:val===o.v?this.ac():'transparent',color:val===o.v?'#fff':t.sub,cursor:'pointer',fontSize:11.5,fontWeight:600,transition:'all .12s'},
+        children:[ o.icon?(typeof o.icon==='string'?this.uIcon(o.icon,15,'currentColor'):o.icon):null, o.label?h('span',{key:'l'},o.label):null ].filter(Boolean)})));
+  }
+
+  renderHeader(){
+    const t=this.th(), h=this.h, A=this.ac();
+    const themeBtn=(id,label)=>h('button',{key:id,onClick:()=>this.setState({theme:id}),
+      style:{padding:'5px 11px',borderRadius:7,border:'none',background:this.state.theme===id?A:'transparent',
+        color:this.state.theme===id?'#fff':t.sub,fontSize:11.5,fontWeight:600,cursor:'pointer',transition:'all .12s'}},label);
+    return h('div',{style:{height:54,flex:'none',display:'flex',alignItems:'center',gap:14,padding:'0 16px',background:t.panel,borderBottom:'1px solid '+t.border,zIndex:5}},
+      h('div',{style:{display:'flex',alignItems:'center',gap:10}},
+        h('div',{style:{width:30,height:30,borderRadius:8,background:A,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff'}},this.uIcon('cards',18,'#fff',1.8)),
+        h('div',{style:{fontWeight:800,fontSize:16,letterSpacing:'-.3px',color:t.text}},'Card',h('span',{style:{color:A}},'Smith'))),
+      h('div',{style:{width:1,height:24,background:t.border}}),
+      h('div',{style:{display:'flex',gap:6}},
+        this.iconBtn('undo',()=>this.undo(),{title:'Undo (⌘Z)',disabled:!this.history.past.length}),
+        this.iconBtn('redo',()=>this.redo(),{title:'Redo (⌘⇧Z)',disabled:!this.history.future.length})),
+      h('div',{style:{flex:1}}),
+      h('div',{style:{display:'flex',background:t.input,borderRadius:9,padding:3,border:'1px solid '+t.border}},
+        themeBtn('studio','Studio'),themeBtn('warm','Warm'),themeBtn('dark','Dark')),
+      h('button',{onClick:()=>this.exportPDF('letter'),
+        style:{display:'inline-flex',alignItems:'center',gap:7,padding:'8px 15px',borderRadius:9,border:'none',background:A,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer',boxShadow:'0 2px 8px '+A+'55'}},
+        this.uIcon('download',16,'#fff'),'Export PDF'));
+  }
+
+  renderInspector(){
+    const t=this.th(), h=this.h, el=this.curEl();
+    if(!el) return null;
+    const upd=(p,k)=>this.updateSelEl(p,{key:k});
+    const rows=[];
+    rows.push(h('div',{key:'pos',style:{display:'flex',gap:8,marginBottom:8}},
+      h('div',{style:{flex:1}},this.field('W',this.numInput(el.w,v=>upd({w:v},'w'),{step:1,min:1}))),
+      h('div',{style:{flex:1}},this.field('H',this.numInput(el.h,v=>upd({h:v},'h'),{step:1,min:1})))));
+    rows.push(this.field('Rotate',this.slider(el.rotation||0,-180,180,1,v=>upd({rotation:v},'rot'),{suffix:'°'})));
+    rows.push(this.field('Opacity',this.slider(el.opacity==null?1:el.opacity,0,1,.05,v=>upd({opacity:v},'op'))));
+
+    if(el.type==='text'){
+      rows.push(h('div',{key:'txt',style:{marginBottom:8}},
+        h('textarea',{value:el.text,onChange:e=>upd({text:e.target.value},'text'),rows:2,
+          style:{width:'100%',background:t.input,border:'1px solid '+t.border,borderRadius:8,padding:'8px',fontSize:13,color:t.text,resize:'vertical',lineHeight:1.4}})));
+      rows.push(this.field('Font',h('select',{value:el.font,onChange:e=>upd({font:e.target.value},'font'),
+        style:{width:'100%',background:t.input,border:'1px solid '+t.border,borderRadius:7,padding:'6px 8px',fontSize:12.5,color:t.text,cursor:'pointer'}},
+        this.FONTS.map(f=>h('option',{key:f.id,value:f.css,style:{fontFamily:f.css}},f.label)))));
+      rows.push(this.field('Size',this.slider(el.size,1.5,24,.2,v=>upd({size:v},'size'),{suffix:'mm'})));
+      rows.push(this.field('Weight',this.seg([{v:400,label:'Reg'},{v:600,label:'Med'},{v:700,label:'Bold'},{v:800,label:'Black'}],el.weight,v=>upd({weight:v},'wt'))));
+      rows.push(this.field('Align',h('div',{style:{display:'flex',gap:6}},
+        this.seg([{v:'left',icon:'alignL'},{v:'center',icon:'alignC'},{v:'right',icon:'alignR'}],el.align,v=>upd({align:v},'al')),
+        this.iconBtn('bold',()=>upd({italic:!el.italic},'it'),{active:el.italic,title:'Italic'}))));
+      rows.push(this.field('Color',this.colorInput(el.color,v=>upd({color:v},'col'))));
+    } else if(el.type==='image'){
+      rows.push(h('div',{key:'up',style:{marginBottom:8}},
+        h('label',{style:{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'10px',borderRadius:8,border:'1.5px dashed '+t.border,background:t.input,cursor:'pointer',fontSize:12.5,color:t.sub,fontWeight:600}},
+          this.uIcon('image',16,'currentColor'), el.src?'Replace image':'Upload image',
+          h('input',{type:'file',accept:'image/*',onChange:e=>this.onUpload(e.target.files[0]),style:{display:'none'}}))));
+      rows.push(this.field('Fit',this.seg([{v:'cover',label:'Cover'},{v:'contain',label:'Fit'}],el.fit,v=>upd({fit:v},'fit'))));
+      rows.push(this.field('Radius',this.slider(el.radius||0,0,12,.5,v=>upd({radius:v},'rad'))));
+    } else if(el.type==='icon'){
+      rows.push(this.field('Color',this.colorInput(el.color,v=>upd({color:v},'col'))));
+      rows.push(h('div',{key:'ic',style:{display:'grid',gridTemplateColumns:'repeat(8,1fr)',gap:4,marginBottom:8}},
+        Object.keys(this.ICONS).map(k=>h('button',{key:k,onClick:()=>upd({icon:k},'icon'),title:k,
+          style:{aspectRatio:'1',display:'flex',alignItems:'center',justifyContent:'center',borderRadius:7,cursor:'pointer',
+            border:'1px solid '+(el.icon===k?this.ac():t.border),background:el.icon===k?this.ac()+'18':t.input,color:el.icon===k?this.ac():t.sub}},
+          this.gIcon(k,15,'currentColor')))));
+    } else if(el.type==='shape'){
+      rows.push(this.field('Shape',this.seg([{v:'rect',icon:'square'},{v:'circle',icon:'circle'},{v:'line',icon:'line'}],el.shape,v=>upd({shape:v},'shp'))));
+      if(el.shape!=='line') rows.push(this.field('Fill',this.colorInput(el.fill,v=>upd({fill:v},'fill'))));
+      rows.push(this.field('Stroke',this.colorInput(el.stroke,v=>upd({stroke:v},'str'))));
+      rows.push(this.field('Width',this.slider(el.strokeWidth||0,0,6,.2,v=>upd({strokeWidth:v},'sw'))));
+      if(el.shape==='rect') rows.push(this.field('Radius',this.slider(el.radius||0,0,15,.5,v=>upd({radius:v},'rad'))));
+    }
+    rows.push(h('div',{key:'act',style:{display:'flex',gap:6,marginTop:4,paddingTop:12,borderTop:'1px solid '+t.line}},
+      this.iconBtn('up',()=>this.layer('up'),{title:'Bring forward'}),
+      this.iconBtn('down',()=>this.layer('down'),{title:'Send backward'}),
+      this.iconBtn('copy',()=>this.dupEl(),{title:'Duplicate (⌘D)'}),
+      h('div',{style:{flex:1}}),
+      this.iconBtn(this.uIcon('trash',16,'#d4584a'),()=>this.deleteEl(),{title:'Delete'})));
+
+    return this.section('Inspector · '+el.type, 'sliders',
+      h('div',{style:{background:t.panel2,border:'1px solid '+t.border,borderRadius:10,padding:'12px 12px 4px'}},rows));
+  }
+
+  renderLeftPanel(){
+    const t=this.th(), h=this.h, c=this.curCard(); if(!c) return null;
+    const A=this.ac();
+    const addBtn=(type,icon,label)=>h('button',{key:type,onClick:()=>this.addEl(type),
+      style:{display:'flex',flexDirection:'column',alignItems:'center',gap:6,padding:'12px 4px',borderRadius:10,border:'1px solid '+t.border,background:t.panel2,color:t.text,cursor:'pointer',transition:'all .12s'},
+      onMouseEnter:e=>{e.currentTarget.style.borderColor=A;e.currentTarget.style.color=A;},
+      onMouseLeave:e=>{e.currentTarget.style.borderColor=t.border;e.currentTarget.style.color=t.text;}},
+      this.uIcon(icon,19,'currentColor'),h('span',{style:{fontSize:11,fontWeight:600}},label));
+
+    const typeBtns=Object.keys(this.TYPES).map(id=>{
+      const ty=this.TYPES[id], on=c.typeId===id;
+      return h('button',{key:id,onClick:()=>this.setType(id),
+        style:{textAlign:'left',padding:'8px 10px',borderRadius:8,border:'1px solid '+(on?A:t.border),background:on?A+'12':t.panel2,cursor:'pointer',transition:'all .12s'}},
+        h('div',{style:{fontSize:12,fontWeight:700,color:on?A:t.text}},ty.label),
+        h('div',{style:{fontSize:10.5,color:t.faint,marginTop:1}}, id==='custom'?'set size →':ty.w+' × '+ty.h+' mm'));
+    });
+
+    const tmplGrid=h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}},
+      this.templateList().map(tm=>h('button',{key:tm.id,onClick:()=>this.applyTemplate(tm.id),
+        style:{padding:'9px 8px',borderRadius:9,border:'1px solid '+t.border,background:t.panel2,color:t.text,cursor:'pointer',fontSize:11.5,fontWeight:600,textAlign:'left',transition:'all .12s'},
+        onMouseEnter:e=>{e.currentTarget.style.borderColor=A;},
+        onMouseLeave:e=>{e.currentTarget.style.borderColor=t.border;}},
+        h('div',{style:{width:18,height:24,borderRadius:3,border:'1px solid '+t.faint,marginBottom:6,position:'relative',overflow:'hidden',background:t.input}},
+          this.tmplGlyph(tm.id,t)),
+        tm.label)));
+
+    return h('div',{style:{width:288,flex:'none',background:t.panel,borderRight:'1px solid '+t.border,overflowY:'auto',display:'flex',flexDirection:'column'}},
+      this.renderInspector(),
+      this.section('Add Element','plus',
+        h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:8}},
+          addBtn('text','type','Text'),addBtn('image','image','Image'),addBtn('icon','star','Icon'),addBtn('shape','square','Shape'))),
+      this.section('Templates','grid',tmplGrid),
+      this.section('Card Type','cards',h('div',{style:{display:'flex',flexDirection:'column',gap:6}},
+        typeBtns,
+        c.typeId==='custom'?h('div',{style:{display:'flex',gap:8,marginTop:4}},
+          h('div',{style:{flex:1}},this.field('W mm',this.numInput(c.w,v=>this.patchCard({w:v||10},'cw'),{min:10,max:300}))),
+          h('div',{style:{flex:1}},this.field('H mm',this.numInput(c.h,v=>this.patchCard({h:v||10},'ch'),{min:10,max:300})))):null)),
+      this.section('Background','paint',h('div',null,
+        this.field('Style',this.seg([{v:'solid',label:'Solid'},{v:'gradient',label:'Gradient'}],c.bg.type==='gradient'?'gradient':'solid',v=>this.setBg(v==='gradient'?{type:'gradient'}:{type:'solid'}))),
+        c.bg.type==='gradient'?h('div',null,
+          this.field('From',this.colorInput(c.bg.from,v=>this.setBg({from:v}))),
+          this.field('To',this.colorInput(c.bg.to,v=>this.setBg({to:v}))),
+          this.field('Angle',this.slider(c.bg.angle||135,0,360,5,v=>this.setBg({angle:v})))
+        ):this.field('Color',this.colorInput(c.bg.color,v=>this.setBg({color:v}))),
+        h('div',{style:{height:1,background:t.line,margin:'10px 0'}}),
+        this.field('Border',this.slider(c.border.width||0,0,4,.25,v=>this.setBorder({width:v}))),
+        c.border.width>0?h('div',null,
+          this.field('Color',this.colorInput(c.border.color,v=>this.setBorder({color:v}))),
+          this.field('Round',this.slider(c.border.radius||0,0,12,.5,v=>this.setBorder({radius:v})))):null)),
+      h('div',{style:{height:20}}));
+  }
+
+  tmplGlyph(id,t){
+    const h=this.h, a=this.ac();
+    const bar=(x,y,w,hh,col)=>h('div',{key:x+'-'+y,style:{position:'absolute',left:x+'%',top:y+'%',width:w+'%',height:hh+'%',background:col,borderRadius:1}});
+    if(id==='classic') return [bar(12,8,76,14,a),bar(12,28,76,34,t.faint),bar(12,68,76,22,t.border)];
+    if(id==='stat') return [bar(20,8,60,10,t.faint),bar(15,22,70,40,t.border),bar(12,72,22,18,a),bar(39,72,22,18,a),bar(66,72,22,18,a)];
+    if(id==='playing') return [bar(10,8,20,16,a),bar(38,38,24,24,a),bar(70,76,20,16,a)];
+    if(id==='minimal') return [bar(38,24,24,22,a),bar(20,56,60,10,t.faint)];
+    if(id==='character') return [bar(12,8,76,46,t.border),bar(8,56,84,12,a),bar(18,74,64,16,t.faint)];
+    if(id==='spell') return [bar(10,8,46,12,t.faint),bar(72,8,20,16,a),bar(36,30,28,26,a),bar(12,62,76,30,t.border)];
+    if(id==='token') return [bar(24,16,52,52,a),bar(20,76,60,12,t.faint)];
+    return [bar(10,10,80,80,t.input)];
+  }
+
+  renderRightPanel(){
+    const t=this.th(), h=this.h, A=this.ac();
+    const cards=this.state.cards;
+    const total=cards.reduce((s,c)=>s+(c.qty||1),0);
+    const thumb=(card)=>{
+      const on=card.id===this.state.selCard;
+      const maxW=92, s=maxW/(card.w+2*this.B);
+      return h('div',{key:card.id,onClick:()=>this.selectCard(card.id),
+        style:{display:'flex',gap:10,padding:8,borderRadius:11,cursor:'pointer',border:'1px solid '+(on?A:t.border),background:on?A+'10':t.panel2,transition:'all .12s'}},
+        h('div',{style:{width:maxW,flex:'none',display:'flex',alignItems:'center',justifyContent:'center'}},
+          h('div',{style:{boxShadow:'0 2px 6px rgba(0,0,0,.18)',borderRadius:2}},this.renderFace(card,s,false))),
+        h('div',{style:{flex:1,minWidth:0,display:'flex',flexDirection:'column',gap:4,paddingTop:2}},
+          h('input',{value:card.name,onClick:e=>e.stopPropagation(),onChange:e=>{const cs=cards.map(x=>x.id!==card.id?x:{...x,name:e.target.value});this.setState({cards:cs});},
+            style:{background:'transparent',border:'none',fontSize:13,fontWeight:700,color:t.text,width:'100%',padding:0}}),
+          h('div',{style:{fontSize:10.5,color:t.faint}}, this.TYPES[card.typeId].label.split(' ')[0]+' · '+card.w+'×'+card.h),
+          h('div',{style:{flex:1}}),
+          h('div',{style:{display:'flex',alignItems:'center',gap:6}},
+            h('div',{style:{display:'flex',alignItems:'center',gap:2,background:t.input,borderRadius:7,padding:'2px',border:'1px solid '+t.border}},
+              h('button',{onClick:e=>{e.stopPropagation();this.setQty(card.id,(card.qty||1)-1);},style:{border:'none',background:'transparent',color:t.sub,cursor:'pointer',width:18,height:18,fontSize:14,lineHeight:1}},'−'),
+              h('span',{style:{fontSize:11.5,fontWeight:700,color:t.text,minWidth:24,textAlign:'center'}},'×'+(card.qty||1)),
+              h('button',{onClick:e=>{e.stopPropagation();this.setQty(card.id,(card.qty||1)+1);},style:{border:'none',background:'transparent',color:t.sub,cursor:'pointer',width:18,height:18,fontSize:14,lineHeight:1}},'+')
+            ),
+            h('div',{style:{flex:1}}),
+            h('button',{onClick:e=>{e.stopPropagation();this.moveCard(card.id,-1);},title:'Move up',style:{border:'none',background:'transparent',color:t.faint,cursor:'pointer',padding:2,display:'flex'}},this.uIcon('up',14,'currentColor')),
+            h('button',{onClick:e=>{e.stopPropagation();this.moveCard(card.id,1);},title:'Move down',style:{border:'none',background:'transparent',color:t.faint,cursor:'pointer',padding:2,display:'flex'}},this.uIcon('down',14,'currentColor')),
+            h('button',{onClick:e=>{e.stopPropagation();this.delCard(card.id);},title:'Delete card',style:{border:'none',background:'transparent',color:t.faint,cursor:'pointer',padding:2,display:'flex'}},this.uIcon('trash',14,'currentColor')))));
+    };
+    const eBtn=(icon,label,onClick,primary)=>h('button',{key:label,onClick,
+      style:{display:'flex',alignItems:'center',gap:8,padding:'9px 11px',borderRadius:9,border:'1px solid '+(primary?A:t.border),
+        background:primary?A:t.panel2,color:primary?'#fff':t.text,cursor:'pointer',fontSize:12.5,fontWeight:600,width:'100%',transition:'all .12s'}},
+      this.uIcon(icon,15,'currentColor'),label);
+
+    return h('div',{style:{width:296,flex:'none',background:t.panel,borderLeft:'1px solid '+t.border,display:'flex',flexDirection:'column'}},
+      h('div',{style:{padding:'14px 14px 10px',display:'flex',alignItems:'center',gap:8,borderBottom:'1px solid '+t.line}},
+        h('div',{style:{fontSize:11,fontWeight:700,letterSpacing:'.9px',textTransform:'uppercase',color:t.sub,flex:1}},'Deck'),
+        h('div',{style:{fontSize:11,color:t.faint,fontWeight:600}},cards.length+' cards · '+total+' printed'),
+        this.iconBtn('plus',()=>this.addCard(),{title:'Add card',w:30})),
+      h('div',{style:{flex:1,overflowY:'auto',padding:'10px 12px',display:'flex',flexDirection:'column',gap:8}},
+        cards.map(thumb),
+        h('div',{style:{display:'flex',gap:8,marginTop:2}},
+          h('button',{onClick:()=>this.addCard(),style:{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:6,padding:'10px',borderRadius:9,border:'1.5px dashed '+t.border,background:'transparent',color:t.sub,cursor:'pointer',fontSize:12.5,fontWeight:600}},this.uIcon('plus',15,'currentColor'),'Add'),
+          h('button',{onClick:()=>this.dupCard(),style:{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:6,padding:'10px',borderRadius:9,border:'1.5px dashed '+t.border,background:'transparent',color:t.sub,cursor:'pointer',fontSize:12.5,fontWeight:600}},this.uIcon('copy',15,'currentColor'),'Duplicate'))),
+      h('div',{style:{borderTop:'1px solid '+t.border,padding:'13px 14px',display:'flex',flexDirection:'column',gap:8,background:t.panel2}},
+        h('div',{style:{fontSize:11,fontWeight:700,letterSpacing:'.9px',textTransform:'uppercase',color:t.sub,marginBottom:2}},'Export & Project'),
+        h('div',{style:{display:'flex',gap:8}},
+          eBtn('download','PDF · Letter',()=>this.exportPDF('letter'),true),
+          eBtn('download','PDF · A4',()=>this.exportPDF('a4'))),
+        h('div',{style:{display:'flex',gap:8}},
+          eBtn('image','PNG card',()=>this.exportPNG(false)),
+          eBtn('image','PNG all',()=>this.exportPNG(true))),
+        h('div',{style:{display:'flex',gap:8}},
+          eBtn('table','Batch fill',()=>this.setState({modal:'batch'})),
+          h('div',{style:{flex:1,display:'flex',gap:8}},
+            this.iconBtn('save',()=>this.saveJSON(),{title:'Save project (JSON)',w:'100%'}),
+            h('label',{title:'Load project',style:{flex:1,display:'flex',alignItems:'center',justifyContent:'center',borderRadius:8,border:'1px solid '+t.border,background:t.panel,cursor:'pointer',color:t.text}},
+              this.uIcon('folder',16,'currentColor'),
+              h('input',{type:'file',accept:'.json,application/json',onChange:e=>this.loadJSON(e.target.files[0]),style:{display:'none'}}))))));
+  }
+
+  renderElDOM(el, s, interactive){
+    const h=this.h, B=this.B, sel=interactive && el.id===this.state.selEl, A=this.ac();
+    const wrap={ position:'absolute', left:(el.x+B)*s, top:(el.y+B)*s, width:el.w*s, height:el.h*s,
+      transform:'rotate('+(el.rotation||0)+'deg)', transformOrigin:'center', opacity:el.opacity==null?1:el.opacity,
+      cursor:interactive?'move':'default' };
+    let inner;
+    if(el.type==='text'){
+      inner=h('div',{style:{width:'100%',height:'100%',fontFamily:el.font,fontSize:el.size*s,fontWeight:el.weight,fontStyle:el.italic?'italic':'normal',
+        color:el.color,textAlign:el.align,lineHeight:el.lineH||1.2,letterSpacing:(el.letter||0)*s/3,whiteSpace:'pre-wrap',wordBreak:'break-word',overflow:'hidden',pointerEvents:'none',display:'block'}},el.text);
+    } else if(el.type==='image'){
+      inner = el.src ? h('img',{src:el.src,style:{width:'100%',height:'100%',objectFit:el.fit,borderRadius:(el.radius||0)*s,pointerEvents:'none',display:'block'}})
+        : h('div',{style:{width:'100%',height:'100%',borderRadius:(el.radius||0)*s,border:'1.5px dashed #b9c2cc',background:'#eef2f5',display:'flex',alignItems:'center',justifyContent:'center',color:'#9aa7b2',pointerEvents:'none'}},this.uIcon('image',Math.min(el.w,el.h)*s*0.4,'#aab4be',1.3));
+    } else if(el.type==='icon'){
+      inner=h('div',{style:{width:'100%',height:'100%',color:el.color,pointerEvents:'none'}},this.gIcon(el.icon,'100%',el.color));
+    } else if(el.type==='shape'){
+      if(el.shape==='line'){
+        inner=h('div',{style:{position:'absolute',top:'50%',left:0,width:'100%',height:Math.max((el.strokeWidth||1)*s, el.h*s),background:el.stroke||el.fill,borderRadius:99,transform:'translateY(-50%)',pointerEvents:'none'}});
+      } else {
+        inner=h('div',{style:{width:'100%',height:'100%',background:el.fill==='none'?'transparent':el.fill,
+          border:(el.strokeWidth||0)>0?(el.strokeWidth*s)+'px solid '+el.stroke:'none',
+          borderRadius:el.shape==='circle'?'50%':(el.radius||0)*s,pointerEvents:'none',boxSizing:'border-box'}});
+      }
+    }
+    const children=[inner];
+    if(sel){
+      children.push(h('div',{key:'sel',style:{position:'absolute',inset:-1,border:'1.5px solid '+A,borderRadius:el.type==='shape'&&el.shape==='circle'?'50%':3,pointerEvents:'none'}}));
+      ['nw','ne','sw','se','n','s','e','w'].forEach(cn=>{
+        const pos={nw:[0,0],n:[50,0],ne:[100,0],e:[100,50],se:[100,100],s:[50,100],sw:[0,100],w:[0,50]}[cn];
+        const curs={nw:'nwse-resize',se:'nwse-resize',ne:'nesw-resize',sw:'nesw-resize',n:'ns-resize',s:'ns-resize',e:'ew-resize',w:'ew-resize'}[cn];
+        children.push(h('div',{key:cn,onPointerDown:e=>this.onHandleDown(e,el,cn),
+          style:{position:'absolute',left:pos[0]+'%',top:pos[1]+'%',width:10,height:10,marginLeft:-5,marginTop:-5,background:'#fff',border:'1.5px solid '+A,borderRadius:3,cursor:curs,zIndex:3}}));
+      });
+      children.push(h('div',{key:'rot',onPointerDown:e=>this.onRotateDown(e,el),
+        style:{position:'absolute',left:'50%',top:-22,marginLeft:-7,width:14,height:14,background:'#fff',border:'1.5px solid '+A,borderRadius:'50%',cursor:'grab',zIndex:3,display:'flex',alignItems:'center',justifyContent:'center'}},
+        this.uIcon('rotate',9,A,2)));
+      children.push(h('div',{key:'rl',style:{position:'absolute',left:'50%',top:-11,width:1,height:11,background:A,marginLeft:-0.5,pointerEvents:'none'}}));
+    }
+    return h('div',{key:el.id, onPointerDown: interactive?(e=>this.onElPointerDown(e,el)):undefined, style:wrap}, children);
+  }
+
+  renderFace(card, s, interactive){
+    const h=this.h, B=this.B;
+    const pw=(card.w+2*B)*s, ph=(card.h+2*B)*s;
+    let bgStyle;
+    if(card.bg.type==='gradient') bgStyle='linear-gradient('+(card.bg.angle||135)+'deg,'+card.bg.from+','+card.bg.to+')';
+    else if(card.bg.type==='none') bgStyle='#fff';
+    else bgStyle=card.bg.color;
+    const children=[];
+    card.elements.forEach(el=>children.push(this.renderElDOM(el,s,interactive)));
+    if(card.border && card.border.width>0){
+      children.push(h('div',{key:'bd',style:{position:'absolute',left:B*s,top:B*s,width:card.w*s,height:card.h*s,
+        border:(card.border.width*s)+'px solid '+card.border.color,borderRadius:(card.border.radius||0)*s,boxSizing:'border-box',pointerEvents:'none'}}));
+    }
+    if(interactive){
+      if(this.state.showBleed) children.push(h('div',{key:'trim',style:{position:'absolute',left:B*s,top:B*s,width:card.w*s,height:card.h*s,outline:'1px dashed rgba(220,60,60,.6)',pointerEvents:'none'}}));
+      if(this.state.showSafe) children.push(h('div',{key:'safe',style:{position:'absolute',left:(B+this.SAFE)*s,top:(B+this.SAFE)*s,width:(card.w-2*this.SAFE)*s,height:(card.h-2*this.SAFE)*s,outline:'1px dashed rgba(60,130,250,.5)',pointerEvents:'none'}}));
+    }
+    return h('div',{ref:interactive?(n=>this.faceEl=n):undefined,
+      onPointerDown:interactive?(e=>{ if(e.target===e.currentTarget) this.setState({selEl:null}); }):undefined,
+      style:{position:'relative',width:pw,height:ph,background:bgStyle,borderRadius:interactive?2:1,overflow:'hidden',flex:'none'}},children);
+  }
+
+  renderCanvas(){
+    const t=this.th(), h=this.h, c=this.curCard();
+    const base = this.fitScale(c);
+    const s = base*this.state.zoom;
+    this.scale=s;
+    const toggle=(key,label,col)=>h('button',{onClick:()=>this.setState({[key]:!this.state[key]}),
+      style:{display:'flex',alignItems:'center',gap:6,padding:'5px 10px',borderRadius:7,border:'1px solid '+t.border,
+        background:this.state[key]?t.panel:t.panel2,color:this.state[key]?t.text:t.faint,cursor:'pointer',fontSize:11.5,fontWeight:600}},
+      h('span',{style:{width:9,height:9,borderRadius:2,border:'1.5px dashed '+col,display:'inline-block'}}),label);
+    const zb=(icon,fn,title)=>h('button',{onClick:fn,title,style:{width:28,height:28,display:'flex',alignItems:'center',justifyContent:'center',border:'none',background:'transparent',color:t.sub,cursor:'pointer',fontSize:16,fontWeight:700}},icon);
+
+    return h('div',{style:{flex:1,minWidth:0,position:'relative',display:'flex',flexDirection:'column',background:t.canvas}},
+      h('div',{style:{position:'absolute',top:14,left:'50%',transform:'translateX(-50%)',zIndex:4,display:'flex',gap:8,alignItems:'center',background:t.panel,border:'1px solid '+t.border,borderRadius:10,padding:'6px 8px',boxShadow:t.shadow}},
+        toggle('showBleed','Bleed','rgba(220,60,60,.8)'),
+        toggle('showSafe','Safe','rgba(60,130,250,.8)'),
+        h('div',{style:{width:1,height:18,background:t.border}}),
+        h('div',{style:{fontSize:11.5,color:t.sub,fontWeight:600,padding:'0 2px'}}, c?(c.w+' × '+c.h+' mm'):'')),
+      h('div',{ref:n=>this.stageEl=n,style:{flex:1,overflow:'auto',display:'flex',alignItems:'center',justifyContent:'center',padding:40}},
+        c? h('div',{style:{boxShadow:'0 12px 40px rgba(0,0,0,.22)',borderRadius:3}}, this.renderFace(c,s,true)) : null),
+      h('div',{style:{position:'absolute',bottom:16,left:'50%',transform:'translateX(-50%)',zIndex:4,display:'flex',alignItems:'center',gap:2,background:t.panel,border:'1px solid '+t.border,borderRadius:10,padding:'4px 6px',boxShadow:t.shadow}},
+        zb('−',()=>this.setState({zoom:Math.max(.3,+(this.state.zoom-.15).toFixed(2))}),'Zoom out'),
+        h('button',{onClick:()=>this.setState({zoom:1}),style:{minWidth:52,textAlign:'center',border:'none',background:'transparent',color:t.text,cursor:'pointer',fontSize:12,fontWeight:700}},Math.round(this.state.zoom*100)+'%'),
+        zb('+',()=>this.setState({zoom:Math.min(3,+(this.state.zoom+.15).toFixed(2))}),'Zoom in')),
+      this.state.selEl?h('div',{style:{position:'absolute',bottom:16,right:18,zIndex:4,fontSize:11,color:t.sub,background:t.panel,border:'1px solid '+t.border,borderRadius:8,padding:'6px 10px',boxShadow:t.shadow}},'Drag to move · corners resize · ⌫ delete'):null);
+  }
+
+  fitScale(c){
+    if(!c) return 3;
+    const availW=Math.max(120,this.state.stageW-90), availH=Math.max(120,this.state.stageH-90);
+    const sW=availW/(c.w+2*this.B), sH=availH/(c.h+2*this.B);
+    return Math.min(sW,sH);
+  }
+
+  renderModal(){
+    if(this.state.modal!=='batch') return null;
+    const t=this.th(), h=this.h, A=this.ac(), c=this.curCard();
+    const fields=new Set();
+    if(c) c.elements.forEach(e=>{
+      const str = e.type==='text'?e.text : e.type==='image'?e.src:'';
+      if(typeof str==='string'){ const m=str.match(/\{\{\s*\w+\s*\}\}/g); if(m) m.forEach(x=>fields.add(x.replace(/[{}\s]/g,''))); }
+    });
+    const example = 'name,cost,text,qty\nFire Imp,2,Deal 2 damage,3\nFrost Wisp,1,Freeze a target,2';
+    return h('div',{style:{position:'fixed',inset:0,background:'rgba(15,20,18,.5)',zIndex:50,display:'flex',alignItems:'center',justifyContent:'center',padding:24},onClick:()=>this.setState({modal:null})},
+      h('div',{onClick:e=>e.stopPropagation(),style:{width:560,maxWidth:'100%',background:t.panel,borderRadius:16,boxShadow:'0 30px 80px rgba(0,0,0,.4)',overflow:'hidden',border:'1px solid '+t.border}},
+        h('div',{style:{padding:'18px 22px',borderBottom:'1px solid '+t.border,display:'flex',alignItems:'center',gap:10}},
+          h('div',{style:{width:34,height:34,borderRadius:9,background:A+'18',color:A,display:'flex',alignItems:'center',justifyContent:'center'}},this.uIcon('table',18,'currentColor')),
+          h('div',{style:{flex:1}},
+            h('div',{style:{fontWeight:800,fontSize:16,color:t.text}},'Batch generate from data'),
+            h('div',{style:{fontSize:12,color:t.sub,marginTop:1}},'Each row becomes one card, using "'+(c?c.name:'this card')+'" as the layout')),
+          h('button',{onClick:()=>this.setState({modal:null}),style:{border:'none',background:'transparent',color:t.sub,cursor:'pointer',padding:4}},this.uIcon('close',20,'currentColor'))),
+        h('div',{style:{padding:'18px 22px'}},
+          h('div',{style:{fontSize:12.5,color:t.sub,lineHeight:1.5,marginBottom:12}},
+            'Put ',h('code',{style:{background:t.input,padding:'1px 5px',borderRadius:4,color:A,fontSize:12}},'{{field}}'),
+            ' placeholders into any text or image element on the base card, then paste a CSV / tab table below. The first column names the card; a ',h('code',{style:{background:t.input,padding:'1px 5px',borderRadius:4,color:t.text,fontSize:12}},'qty'),' column sets print count.'),
+          fields.size?h('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}},
+            h('span',{style:{fontSize:11.5,color:t.faint,fontWeight:600,alignSelf:'center'}},'Detected fields:'),
+            [...fields].map(f=>h('span',{key:f,style:{fontSize:11.5,fontWeight:700,color:A,background:A+'14',padding:'3px 9px',borderRadius:6}},'{{'+f+'}}'))
+          ):h('div',{style:{fontSize:11.5,color:'#d08a3a',background:'#d08a3a18',padding:'8px 11px',borderRadius:8,marginBottom:12}},'Tip: add {{name}} style placeholders to the base card first, then they\'ll be filled per row.'),
+          h('textarea',{value:this.state.batchText,placeholder:example,onChange:e=>this.setState({batchText:e.target.value}),
+            style:{width:'100%',height:150,background:t.input,border:'1px solid '+t.border,borderRadius:10,padding:'12px',fontSize:12.5,fontFamily:"'Space Mono',monospace",color:t.text,resize:'vertical',lineHeight:1.5}}),
+          h('div',{style:{display:'flex',gap:10,marginTop:16,justifyContent:'flex-end'}},
+            h('button',{onClick:()=>this.setState({batchText:example}),style:{padding:'9px 14px',borderRadius:9,border:'1px solid '+t.border,background:t.panel2,color:t.sub,cursor:'pointer',fontSize:13,fontWeight:600}},'Load example'),
+            h('button',{onClick:()=>this.setState({modal:null}),style:{padding:'9px 14px',borderRadius:9,border:'1px solid '+t.border,background:t.panel,color:t.text,cursor:'pointer',fontSize:13,fontWeight:600}},'Cancel'),
+            h('button',{onClick:()=>this.batchGenerate(),style:{padding:'9px 18px',borderRadius:9,border:'none',background:A,color:'#fff',cursor:'pointer',fontSize:13,fontWeight:700}},'Generate deck')))));
+  }
+
+  render(){
+    const h=this.h, t=this.th();
+    if(!this.state.cards.length) return h('div',{className:'cmsplash',style:{background:t?t.bg:'#eee'}},'CardSmith');
+    return h('div',{style:{display:'flex',flexDirection:'column',height:'100vh',background:t.bg,color:t.text,fontFamily:"'Plus Jakarta Sans',sans-serif"}},
+      this.renderHeader(),
+      h('div',{style:{flex:1,display:'flex',minHeight:0}},
+        this.renderLeftPanel(),
+        this.renderCanvas(),
+        this.renderRightPanel()),
+      this.renderModal(),
+      this.state.toast?h('div',{style:{position:'fixed',bottom:24,left:'50%',transform:'translateX(-50%)',zIndex:60,background:'#1d2a24',color:'#fff',padding:'10px 18px',borderRadius:10,fontSize:13,fontWeight:600,boxShadow:'0 8px 30px rgba(0,0,0,.3)'}},this.state.toast):null);
+  }
+}
+
+const rootEl = document.getElementById('root');
+if (ReactDOM.createRoot) {
+  ReactDOM.createRoot(rootEl).render(React.createElement(CardMaker));
+} else {
+  ReactDOM.render(React.createElement(CardMaker), rootEl);
+}
+</script>
+</body>
+</html>
