@@ -1070,6 +1070,8 @@ class CardMaker extends React.Component {
           eBtn('image','PNG card',()=>this.exportPNG(false)),
           eBtn('image','PNG all',()=>this.exportPNG(true))),
         h('div',{style:{display:'flex',gap:8}},
+          eBtn('grid','Generate series',()=>this.openSeries())),
+        h('div',{style:{display:'flex',gap:8}},
           eBtn('table','Batch fill',()=>this.setState({modal:'batch'})),
           h('div',{style:{flex:1,display:'flex',gap:8}},
             this.iconBtn('save',()=>this.saveJSON(),{title:'Save project (JSON)',w:'100%'}),
@@ -1227,6 +1229,78 @@ class CardMaker extends React.Component {
             h('button',{onClick:()=>this.batchGenerate(),style:{padding:'9px 18px',borderRadius:9,border:'none',background:A,color:'#fff',cursor:'pointer',fontSize:13,fontWeight:700}},'Generate deck')))));
   }
 
+  renderSeriesModal(){
+    if(this.state.modal!=='series') return null;
+    const t=this.th(), h=this.h, A=this.ac(), c=this.curCard();
+    const S=this.state.series;
+    const targets=this.seriesTargets();
+    const N=this.seriesCount();
+    const over=N>150;
+    const varLabel=(v)=>{ const tg=targets.find(x=>x.elId===v.elId); const p=tg&&tg.props.find(pp=>pp.prop===v.prop); return (tg?tg.label:v.elId)+' → '+(p?p.label:v.prop); };
+    const modeBtn=(m,label)=>h('button',{key:m,onClick:()=>this.setState({series:{...S,mode:m}}),
+      style:{padding:'5px 12px',borderRadius:7,border:'1px solid '+(S.mode===m?A:t.border),background:S.mode===m?A:t.panel,color:S.mode===m?'#fff':t.text,cursor:'pointer',fontSize:12,fontWeight:700}},label);
+    const addOptions=[]; targets.forEach(tg=>tg.props.forEach(p=>addOptions.push({elId:tg.elId,prop:p.prop,label:tg.label+' → '+p.label})));
+    const addSelect=h('select',{value:'',onChange:e=>{ const val=e.target.value; if(!val) return; const parts=val.split('|'); this.addSeriesVar(parts[0],parts[1]); },
+      style:{background:t.input,border:'1px solid '+t.border,borderRadius:8,padding:'7px 10px',fontSize:12.5,color:t.text,cursor:'pointer',fontWeight:600}},
+      [h('option',{key:'_',value:''},'+ Add variable'), ...addOptions.map((o,k)=>h('option',{key:k,value:o.elId+'|'+o.prop},o.label))]);
+    const varEditor=(v)=>{
+      let editor;
+      if(v.prop==='text'){
+        const seg=h('div',{style:{display:'flex',gap:6,marginBottom:8}},
+          ['range','list'].map(mm=>h('button',{key:mm,onClick:()=>this.updateSeriesVar(v.id,{valueMode:mm}),
+            style:{padding:'4px 10px',borderRadius:6,border:'1px solid '+(v.valueMode===mm?A:t.border),background:v.valueMode===mm?A+'18':t.panel,color:v.valueMode===mm?A:t.sub,cursor:'pointer',fontSize:11.5,fontWeight:700}},mm==='range'?'Range':'List')));
+        const body = v.valueMode==='range'
+          ? h('div',{style:{display:'flex',gap:8,alignItems:'center'}},
+              h('div',{style:{flex:1}},this.field('From',this.numInput(v.from,x=>this.updateSeriesVar(v.id,{from:x}),{step:1}))),
+              h('div',{style:{flex:1}},this.field('To',this.numInput(v.to,x=>this.updateSeriesVar(v.id,{to:x}),{step:1}))),
+              h('div',{style:{flex:1}},this.field('Step',this.numInput(v.step,x=>this.updateSeriesVar(v.id,{step:x}),{step:1,min:0}))))
+          : this.textInput(v.list.join(', '),x=>this.updateSeriesVar(v.id,{list:x.split(',').map(s=>s.trim()).filter(Boolean)}),{ph:'e.g. A, K, Q, J'});
+        editor=h('div',{},seg,body);
+      } else if(v.prop==='icon'){
+        editor=h('div',{style:{display:'flex',flexWrap:'wrap',gap:6}},
+          Object.keys(this.ICONS).map(k=>{ const on=v.list.indexOf(k)>=0;
+            return h('button',{key:k,title:k,onClick:()=>this.updateSeriesVar(v.id,{list: on? v.list.filter(x=>x!==k) : [...v.list,k]}),
+              style:{width:34,height:34,borderRadius:8,border:'1.5px solid '+(on?A:t.border),background:on?A+'18':t.input,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',padding:0}},
+              this.gIcon(k,20,on?A:t.sub)); }));
+      } else {
+        editor=h('div',{style:{display:'flex',flexWrap:'wrap',gap:6,alignItems:'center'}},
+          v.list.map((col,ci)=>h('div',{key:ci,style:{display:'flex',alignItems:'center',gap:5,background:t.input,border:'1px solid '+t.border,borderRadius:7,padding:'3px 7px'}},
+            h('span',{style:{width:14,height:14,borderRadius:4,background:col,border:'1px solid '+t.border}}),
+            h('span',{style:{fontSize:11,color:t.text}},col),
+            h('button',{onClick:()=>this.updateSeriesVar(v.id,{list:v.list.filter((_,x)=>x!==ci)}),style:{border:'none',background:'transparent',color:t.faint,cursor:'pointer',padding:0,fontSize:14,lineHeight:1}},'×'))),
+          h('label',{style:{display:'inline-flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:11.5,color:A,fontWeight:700,border:'1px dashed '+A,borderRadius:7,padding:'4px 8px',position:'relative'}},
+            '+ color',
+            h('input',{type:'color',onChange:e=>this.updateSeriesVar(v.id,{list:[...v.list,e.target.value]}),style:{width:0,height:0,opacity:0,position:'absolute',pointerEvents:'none'}})));
+      }
+      const vals=this.resolveVar(v);
+      return h('div',{key:v.id,style:{border:'1px solid '+t.border,borderRadius:12,padding:'12px',marginBottom:10,background:t.panel2}},
+        h('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:10}},
+          h('div',{style:{fontSize:12.5,fontWeight:700,color:t.text,flex:1}},varLabel(v)),
+          h('button',{onClick:()=>this.removeSeriesVar(v.id),title:'Remove',style:{border:'none',background:'transparent',color:t.faint,cursor:'pointer',padding:2,display:'flex'}},this.uIcon('trash',15,'currentColor'))),
+        editor,
+        h('div',{style:{fontSize:11,color:t.faint,marginTop:9}},'values: '+(vals.length? vals.slice(0,24).join(', ')+(vals.length>24?' …':'') : '—')));
+    };
+    return h('div',{style:{position:'fixed',inset:0,background:'rgba(15,20,18,.5)',zIndex:50,display:'flex',alignItems:'center',justifyContent:'center',padding:24},onClick:()=>this.setState({modal:null})},
+      h('div',{onClick:e=>e.stopPropagation(),style:{width:600,maxWidth:'100%',maxHeight:'90vh',display:'flex',flexDirection:'column',background:t.panel,borderRadius:16,boxShadow:'0 30px 80px rgba(0,0,0,.4)',overflow:'hidden',border:'1px solid '+t.border}},
+        h('div',{style:{padding:'18px 22px',borderBottom:'1px solid '+t.border,display:'flex',alignItems:'center',gap:10}},
+          h('div',{style:{width:34,height:34,borderRadius:9,background:A+'18',color:A,display:'flex',alignItems:'center',justifyContent:'center'}},this.uIcon('grid',18,'currentColor')),
+          h('div',{style:{flex:1}},
+            h('div',{style:{fontWeight:800,fontSize:16,color:t.text}},'Generate series'),
+            h('div',{style:{fontSize:12,color:t.sub,marginTop:1}},'Vary properties of "'+(c?c.name:'this card')+'" across a range or list')),
+          h('div',{style:{display:'flex',gap:6,marginRight:8}},modeBtn('zip','Zip'),modeBtn('product','Product')),
+          h('button',{onClick:()=>this.setState({modal:null}),style:{border:'none',background:'transparent',color:t.sub,cursor:'pointer',padding:4}},this.uIcon('close',20,'currentColor'))),
+        h('div',{style:{padding:'16px 22px',overflowY:'auto',flex:1}},
+          h('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:12}},
+            h('div',{style:{fontSize:11,fontWeight:700,letterSpacing:'.9px',textTransform:'uppercase',color:t.sub,flex:1}},'Variables'),
+            addSelect),
+          S.vars.length? S.vars.map(varEditor)
+            : h('div',{style:{fontSize:12.5,color:t.sub,background:t.input,borderRadius:10,padding:'14px',textAlign:'center'}},'Add a variable to vary a number, icon, or color across the deck.')),
+        h('div',{style:{padding:'14px 22px',borderTop:'1px solid '+t.border,display:'flex',alignItems:'center',gap:12}},
+          h('div',{style:{flex:1,fontSize:13,fontWeight:700,color:over?'#d0432f':t.text}}, over? ('Too many cards ('+N+') — max 150') : ('→ '+N+' card'+(N===1?'':'s')+' will be generated')),
+          h('button',{onClick:()=>this.setState({modal:null}),style:{padding:'9px 14px',borderRadius:9,border:'1px solid '+t.border,background:t.panel,color:t.text,cursor:'pointer',fontSize:13,fontWeight:600}},'Cancel'),
+          h('button',{onClick:()=>this.seriesGenerate(),disabled:N===0||over,style:{padding:'9px 18px',borderRadius:9,border:'none',background:(N===0||over)?t.border:A,color:'#fff',cursor:(N===0||over)?'default':'pointer',fontSize:13,fontWeight:700,opacity:(N===0||over)? .6:1}},'Generate'))));
+  }
+
   render(){
     const h=this.h, t=this.th();
     if(!this.state.cards.length) return h('div',{className:'cmsplash',style:{background:t?t.bg:'#eee'}},'CardSmith');
@@ -1237,6 +1311,7 @@ class CardMaker extends React.Component {
         this.renderCanvas(),
         this.renderRightPanel()),
       this.renderModal(),
+      this.renderSeriesModal(),
       this.state.toast?h('div',{style:{position:'fixed',bottom:24,left:'50%',transform:'translateX(-50%)',zIndex:60,background:'#1d2a24',color:'#fff',padding:'10px 18px',borderRadius:10,fontSize:13,fontWeight:600,boxShadow:'0 8px 30px rgba(0,0,0,.3)'}},this.state.toast):null);
   }
 }
