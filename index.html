@@ -202,7 +202,7 @@ class CardMaker extends React.Component {
   enterEdit(el){
     if(!el || el.type!=='text') return;
     if(!this.curCard()) return;
-    this.pushHistory('text');
+    this._hk=null;
     this._focusEdit=true;
     this.setState({ selEl:el.id, editEl:el.id });
   }
@@ -1015,10 +1015,10 @@ class CardMaker extends React.Component {
           onChange:e=>this.updateSelEl({text:e.target.value},{key:'text'}),
           onKeyDown:e=>{ if(e.key==='Escape'){ e.stopPropagation(); e.preventDefault(); this.setState({editEl:null}); } },
           onBlur:()=>this.setState({editEl:null}),
-          ref:(n)=>{ if(n && this._focusEdit){ this._focusEdit=false; n.focus(); const L=n.value.length; try{ n.setSelectionRange(L,L); }catch(_){} } },
+          ref:(n)=>{ if(n && this._focusEdit){ this._focusEdit=false; n.focus(); const L=n.value.length; n.setSelectionRange(L,L); } },
           style:{width:'100%',height:'100%',fontFamily:el.font,fontSize:el.size*s,fontWeight:el.weight,fontStyle:el.italic?'italic':'normal',
             color:el.color,textAlign:el.align,lineHeight:el.lineH||1.2,letterSpacing:(el.letter||0)*s/3,whiteSpace:'pre-wrap',wordBreak:'break-word',
-            overflow:'hidden',background:'transparent',border:0,padding:0,margin:0,resize:'none',display:'block',boxSizing:'border-box',pointerEvents:'auto'}});
+            overflow:'hidden',background:'transparent',border:0,outline:0,padding:0,margin:0,resize:'none',display:'block',boxSizing:'border-box',pointerEvents:'auto'}});
       } else {
         inner=h('div',{style:{width:'100%',height:'100%',fontFamily:el.font,fontSize:el.size*s,fontWeight:el.weight,fontStyle:el.italic?'italic':'normal',
           color:el.color,textAlign:el.align,lineHeight:el.lineH||1.2,letterSpacing:(el.letter||0)*s/3,whiteSpace:'pre-wrap',wordBreak:'break-word',overflow:'hidden',pointerEvents:'none',display:'block'}},el.text);
