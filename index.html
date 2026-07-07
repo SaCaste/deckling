@@ -109,7 +109,7 @@ class CardMaker extends React.Component {
 
   state = {
     theme:'studio', accent:'#10b981',
-    cards:[], selCard:null, selEl:null,
+    cards:[], selCard:null, selEl:null, editEl:null,
     showBleed:true, showSafe:true, zoom:1,
     stageW:900, stageH:640,
     assets:[], dragOver:false,
@@ -136,6 +136,11 @@ class CardMaker extends React.Component {
     window.removeEventListener('pointerup', this._mu);
     window.removeEventListener('resize', this._rs);
     window.removeEventListener('keydown', this._kd);
+  }
+  componentDidUpdate(){
+    if(this.state.editEl && this.state.editEl!==this.state.selEl){
+      this.setState({ editEl:null });
+    }
   }
   measure(){
     if(this.stageEl){ this.setState({ stageW:this.stageEl.clientWidth, stageH:this.stageEl.clientHeight }); }
