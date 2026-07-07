@@ -113,7 +113,8 @@ class CardMaker extends React.Component {
     showBleed:true, showSafe:true, zoom:1,
     stageW:900, stageH:640,
     assets:[], dragOver:false,
-    leftTab:'card', modal:null, batchText:'', toast:null
+    leftTab:'card', modal:null, batchText:'', toast:null,
+    series:{ mode:'zip', vars:[] }
   };
   MAXDIM = 1600;
 
@@ -707,6 +708,81 @@ class CardMaker extends React.Component {
     }
     this.setState({ cards:[...this.state.cards, ...newCards], modal:null });
     this.toast('Generated '+newCards.length+' cards');
+  }
+  openSeries(){
+    const c=this.curCard(); if(!c){ this.toast('Select a base card'); return; }
+    this.setState({ modal:'series', series:{ mode:'zip', vars:[] } });
+  }
+  seriesTargets(){
+    const c=this.curCard(); if(!c) return [];
+    const out=[];
+    c.elements.forEach(e=>{
+      if(e.type==='text'){ const snip=(e.text||'').replace(/\s+/g,' ').slice(0,16); out.push({elId:e.id,label:'Text · "'+snip+'"',props:[{prop:'text',label:'Number/Text'},{prop:'color',label:'Color'}]}); }
+      else if(e.type==='icon'){ out.push({elId:e.id,label:'Icon · '+e.icon,props:[{prop:'icon',label:'Icon'},{prop:'color',label:'Color'}]}); }
+      else if(e.type==='shape'){ out.push({elId:e.id,label:'Shape · '+e.shape,props:[{prop:'fill',label:'Fill color'}]}); }
+    });
+    out.push({elId:'bg',label:'Background',props:[{prop:'color',label:'Background color'}]});
+    return out;
+  }
+  addSeriesVar(elId, prop){
+    const c=this.curCard(); if(!c) return;
+    let list=[];
+    if(elId==='bg'){ list=[(c.bg&&c.bg.color)||'#ffffff']; }
+    else {
+      const el=c.elements.find(e=>e.id===elId); if(!el) return;
+      if(prop==='icon') list=[el.icon].filter(Boolean);
+      else if(prop==='color') list=[el.color].filter(Boolean);
+      else if(prop==='fill') list=[el.fill].filter(Boolean);
+    }
+    const v={ id:this.uid(), elId, prop, valueMode: prop==='text'?'range':'list', from:1, to:5, step:1, list };
+    this.setState({ series:{...this.state.series, vars:[...this.state.series.vars, v]} });
+  }
+  updateSeriesVar(id, patch){
+    const vars=this.state.series.vars.map(v=>v.id!==id?v:{...v,...patch});
+    this.setState({ series:{...this.state.series, vars} });
+  }
+  removeSeriesVar(id){
+    const vars=this.state.series.vars.filter(v=>v.id!==id);
+    this.setState({ series:{...this.state.series, vars} });
+  }
+  resolveVar(v){
+    if(v.prop==='text' && v.valueMode==='range'){
+      const step=Math.abs(v.step||1); if(!(step>0)) return [];
+      const out=[]; const from=+v.from, to=+v.to;
+      if(to>=from){ for(let n=from;n<=to+1e-9;n+=step){ out.push(String(+n.toFixed(4))); if(out.length>=500) break; } }
+      else { for(let n=from;n>=to-1e-9;n-=step){ out.push(String(+n.toFixed(4))); if(out.length>=500) break; } }
+      return out;
+    }
+    return (v.list||[]).map(x=>String(x)).filter(x=>x.length>0);
+  }
+  seriesCount(){
+    const arrs=this.state.series.vars.map(v=>this.resolveVar(v)).filter(a=>a.length);
+    if(!arrs.length) return 0;
+    if(this.state.series.mode==='product') return arrs.reduce((n,a)=>n*a.length,1);
+    return arrs.reduce((m,a)=>Math.max(m,a.length),0);
+  }
+  seriesGenerate(){
+    const c=this.curCard(); if(!c){ this.toast('Select a base card'); return; }
+    const vars=this.state.series.vars;
+    const arrs=vars.map(v=>({v,vals:this.resolveVar(v)})).filter(o=>o.vals.length);
+    if(!arrs.length){ this.toast('Add at least one variable with values'); return; }
+    const mode=this.state.series.mode;
+    const N = mode==='product' ? arrs.reduce((n,o)=>n*o.vals.length,1) : arrs.reduce((m,o)=>Math.max(m,o.vals.length),0);
+    if(N>150){ this.toast('Too many cards ('+N+') — narrow the ranges'); return; }
+    this.pushHistory('series');
+    const textArr=arrs.find(o=>o.v.prop==='text');
+    const newCards=[];
+    for(let i=0;i<N;i++){
+      const valById={}; let acc=i;
+      arrs.forEach(o=>{ let vi; if(mode==='product'){ vi=acc % o.vals.length; acc=Math.floor(acc/o.vals.length); } else { vi=i % o.vals.length; } valById[o.v.id]=o.vals[vi]; });
+      const nc=this.clone(c); nc.id=this.uid(); nc.qty=1;
+      nc.name = textArr ? String(valById[textArr.v.id]) : (c.name+' '+(i+1));
+      nc.elements = c.elements.map(e=>{ const ne={...this.clone(e), id:this.uid()}; vars.forEach(v=>{ if(v.elId===e.id && valById[v.id]!==undefined) ne[v.prop]=valById[v.id]; }); return ne; });
+      vars.forEach(v=>{ if(v.elId==='bg' && valById[v.id]!==undefined) nc.bg={...nc.bg, type:'solid', color:valById[v.id]}; });
+      newCards.push(nc);
+    }
+    this.setState({ cards:[...this.state.cards, ...newCards], modal:null });
+    this.toast('Generated '+N+' cards');
   }
 
   uIcon(name, size, color, sw){
