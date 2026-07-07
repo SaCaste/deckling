@@ -199,6 +199,13 @@ class CardMaker extends React.Component {
     const cards=this.state.cards.map(c=> c.id!==selCard ? c : { ...c, elements:c.elements.map(e=> e.id!==selEl ? e : {...e,...patch}) });
     this.setState({ cards });
   }
+  enterEdit(el){
+    if(!el || el.type!=='text') return;
+    if(!this.curCard()) return;
+    this.pushHistory('text');
+    this._focusEdit=true;
+    this.setState({ selEl:el.id, editEl:el.id });
+  }
 
   makeEl(type, c, extra){
     const cx=c.w/2, cy=c.h/2, A=this.ac();
@@ -389,6 +396,7 @@ class CardMaker extends React.Component {
 
   onElPointerDown(e, el){
     if(e.button!==0) return;
+    if(this.state.editEl===el.id) return;
     e.stopPropagation();
     this.setState({ selEl:el.id });
     this.pushHistory('move_'+el.id);
@@ -998,11 +1006,23 @@ class CardMaker extends React.Component {
     const h=this.h, B=this.B, sel=interactive && el.id===this.state.selEl, A=this.ac();
     const wrap={ position:'absolute', left:(el.x+B)*s, top:(el.y+B)*s, width:el.w*s, height:el.h*s,
       transform:'rotate('+(el.rotation||0)+'deg)', transformOrigin:'center', opacity:el.opacity==null?1:el.opacity,
-      cursor:interactive?'move':'default' };
+      cursor:interactive?(this.state.editEl===el.id?'text':'move'):'default' };
     let inner;
     if(el.type==='text'){
-      inner=h('div',{style:{width:'100%',height:'100%',fontFamily:el.font,fontSize:el.size*s,fontWeight:el.weight,fontStyle:el.italic?'italic':'normal',
-        color:el.color,textAlign:el.align,lineHeight:el.lineH||1.2,letterSpacing:(el.letter||0)*s/3,whiteSpace:'pre-wrap',wordBreak:'break-word',overflow:'hidden',pointerEvents:'none',display:'block'}},el.text);
+      if(interactive && this.state.editEl===el.id){
+        inner=h('textarea',{
+          value:el.text,
+          onChange:e=>this.updateSelEl({text:e.target.value},{key:'text'}),
+          onKeyDown:e=>{ if(e.key==='Escape'){ e.stopPropagation(); e.preventDefault(); this.setState({editEl:null}); } },
+          onBlur:()=>this.setState({editEl:null}),
+          ref:(n)=>{ if(n && this._focusEdit){ this._focusEdit=false; n.focus(); const L=n.value.length; try{ n.setSelectionRange(L,L); }catch(_){} } },
+          style:{width:'100%',height:'100%',fontFamily:el.font,fontSize:el.size*s,fontWeight:el.weight,fontStyle:el.italic?'italic':'normal',
+            color:el.color,textAlign:el.align,lineHeight:el.lineH||1.2,letterSpacing:(el.letter||0)*s/3,whiteSpace:'pre-wrap',wordBreak:'break-word',
+            overflow:'hidden',background:'transparent',border:0,padding:0,margin:0,resize:'none',display:'block',boxSizing:'border-box',pointerEvents:'auto'}});
+      } else {
+        inner=h('div',{style:{width:'100%',height:'100%',fontFamily:el.font,fontSize:el.size*s,fontWeight:el.weight,fontStyle:el.italic?'italic':'normal',
+          color:el.color,textAlign:el.align,lineHeight:el.lineH||1.2,letterSpacing:(el.letter||0)*s/3,whiteSpace:'pre-wrap',wordBreak:'break-word',overflow:'hidden',pointerEvents:'none',display:'block'}},el.text);
+      }
     } else if(el.type==='image'){
       inner = el.src ? h('img',{src:el.src,style:{width:'100%',height:'100%',objectFit:el.fit,borderRadius:(el.radius||0)*s,pointerEvents:'none',display:'block'}})
         : h('div',{style:{width:'100%',height:'100%',borderRadius:(el.radius||0)*s,border:'1.5px dashed #b9c2cc',background:'#eef2f5',display:'flex',alignItems:'center',justifyContent:'center',color:'#9aa7b2',pointerEvents:'none'}},this.uIcon('image',Math.min(el.w,el.h)*s*0.4,'#aab4be',1.3));
@@ -1020,18 +1040,21 @@ class CardMaker extends React.Component {
     const children=[inner];
     if(sel){
       children.push(h('div',{key:'sel',style:{position:'absolute',inset:-1,border:'1.5px solid '+A,borderRadius:el.type==='shape'&&el.shape==='circle'?'50%':3,pointerEvents:'none'}}));
-      ['nw','ne','sw','se','n','s','e','w'].forEach(cn=>{
-        const pos={nw:[0,0],n:[50,0],ne:[100,0],e:[100,50],se:[100,100],s:[50,100],sw:[0,100],w:[0,50]}[cn];
-        const curs={nw:'nwse-resize',se:'nwse-resize',ne:'nesw-resize',sw:'nesw-resize',n:'ns-resize',s:'ns-resize',e:'ew-resize',w:'ew-resize'}[cn];
-        children.push(h('div',{key:cn,onPointerDown:e=>this.onHandleDown(e,el,cn),
-          style:{position:'absolute',left:pos[0]+'%',top:pos[1]+'%',width:10,height:10,marginLeft:-5,marginTop:-5,background:'#fff',border:'1.5px solid '+A,borderRadius:3,cursor:curs,zIndex:3}}));
-      });
-      children.push(h('div',{key:'rot',onPointerDown:e=>this.onRotateDown(e,el),
-        style:{position:'absolute',left:'50%',top:-22,marginLeft:-7,width:14,height:14,background:'#fff',border:'1.5px solid '+A,borderRadius:'50%',cursor:'grab',zIndex:3,display:'flex',alignItems:'center',justifyContent:'center'}},
-        this.uIcon('rotate',9,A,2)));
-      children.push(h('div',{key:'rl',style:{position:'absolute',left:'50%',top:-11,width:1,height:11,background:A,marginLeft:-0.5,pointerEvents:'none'}}));
+      if(this.state.editEl!==el.id){
+        ['nw','ne','sw','se','n','s','e','w'].forEach(cn=>{
+          const pos={nw:[0,0],n:[50,0],ne:[100,0],e:[100,50],se:[100,100],s:[50,100],sw:[0,100],w:[0,50]}[cn];
+          const curs={nw:'nwse-resize',se:'nwse-resize',ne:'nesw-resize',sw:'nesw-resize',n:'ns-resize',s:'ns-resize',e:'ew-resize',w:'ew-resize'}[cn];
+          children.push(h('div',{key:cn,onPointerDown:e=>this.onHandleDown(e,el,cn),
+            style:{position:'absolute',left:pos[0]+'%',top:pos[1]+'%',width:10,height:10,marginLeft:-5,marginTop:-5,background:'#fff',border:'1.5px solid '+A,borderRadius:3,cursor:curs,zIndex:3}}));
+        });
+        children.push(h('div',{key:'rot',onPointerDown:e=>this.onRotateDown(e,el),
+          style:{position:'absolute',left:'50%',top:-22,marginLeft:-7,width:14,height:14,background:'#fff',border:'1.5px solid '+A,borderRadius:'50%',cursor:'grab',zIndex:3,display:'flex',alignItems:'center',justifyContent:'center'}},
+          this.uIcon('rotate',9,A,2)));
+        children.push(h('div',{key:'rl',style:{position:'absolute',left:'50%',top:-11,width:1,height:11,background:A,marginLeft:-0.5,pointerEvents:'none'}}));
+      }
     }
-    return h('div',{key:el.id, onPointerDown: interactive?(e=>this.onElPointerDown(e,el)):undefined, style:wrap}, children);
+    return h('div',{key:el.id, onPointerDown: interactive?(e=>this.onElPointerDown(e,el)):undefined,
+      onDoubleClick: interactive?(e=>this.enterEdit(el)):undefined, style:wrap}, children);
   }
 
   renderFace(card, s, interactive){
