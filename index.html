@@ -128,6 +128,7 @@ class CardMaker extends React.Component {
   state = {
     theme:'studio', accent:'#10b981',
     cards:[], selCard:null, selEl:null, editEl:null,
+    side:'front', back:null, duplexBacks:false,
     showBleed:true, showSafe:true, zoom:1,
     stageW:900, stageH:640,
     assets:[], dragOver:false,
@@ -181,44 +182,68 @@ class CardMaker extends React.Component {
   uid(){ this._n=(this._n||0)+1; return 'e'+this._n+'_'+Date.now().toString(36).slice(-4); }
   clone(x){ return JSON.parse(JSON.stringify(x)); }
   toast(m){ this.setState({toast:m}); clearTimeout(this._tt); this._tt=setTimeout(()=>this.setState({toast:null}),1900); }
-  curCard(){ return this.state.cards.find(c=>c.id===this.state.selCard) || null; }
+  isBack(){ return this.state.side==='back'; }
+  frontCard(){ return this.state.cards.find(c=>c.id===this.state.selCard) || null; }
+  curCard(){ return this.isBack() ? this.state.back : this.frontCard(); }
   curEl(){ const c=this.curCard(); if(!c) return null; return c.elements.find(e=>e.id===this.state.selEl) || null; }
+  // Write the updated card object back to whichever side is on canvas.
+  setCur(next, extra){
+    if(this.isBack()) this.setState({ back:next, ...(extra||{}) });
+    else this.setState({ cards:this.state.cards.map(c=>c.id===next.id?next:c), ...(extra||{}) });
+  }
+  // Default back: accent-colored solid with a centered white star (spec §1).
+  defaultBack(ref){
+    const w=ref?ref.w:this.TYPES.poker.w, h=ref?ref.h:this.TYPES.poker.h;
+    return { name:'Card back', typeId:ref?ref.typeId:'poker', w, h,
+      bg:{type:'solid', color:this.ac(), from:'#ffffff', to:'#dfe6ee', angle:135},
+      border:{width:0, color:'#1c2230', radius:3},
+      elements:[{ id:this.uid(), type:'icon', x:+(w/2-9).toFixed(1), y:+(h/2-9).toFixed(1), w:18, h:18, icon:'star', color:'#ffffff', rotation:0, opacity:1 }] };
+  }
+  flipSide(){
+    const side = this.isBack() ? 'front' : 'back';
+    this._hk=null; // break undo coalescing across sides
+    const patch = { side, selEl:null, editEl:null };
+    if(side==='back' && !this.state.back) patch.back=this.defaultBack(this.frontCard());
+    this.setState(patch);
+  }
 
   pushHistory(key){
     const now=Date.now();
     if(key && key===this._hk && now-(this._ht||0)<700){ this._ht=now; return; }
     this._hk=key; this._ht=now;
-    this.history.past.push(this.clone(this.state.cards));
+    this.history.past.push(this.clone({ cards:this.state.cards, back:this.state.back }));
     if(this.history.past.length>60) this.history.past.shift();
     this.history.future=[];
   }
   undo(){
     if(!this.history.past.length) return;
-    this.history.future.push(this.clone(this.state.cards));
-    const cards=this.history.past.pop();
-    this.setState({ cards }, ()=>this.fixSel());
+    this.history.future.push(this.clone({ cards:this.state.cards, back:this.state.back }));
+    const snap=this.history.past.pop();
+    this.setState({ cards:snap.cards, back:snap.back }, ()=>this.fixSel());
   }
   redo(){
     if(!this.history.future.length) return;
-    this.history.past.push(this.clone(this.state.cards));
-    const cards=this.history.future.pop();
-    this.setState({ cards }, ()=>this.fixSel());
+    this.history.past.push(this.clone({ cards:this.state.cards, back:this.state.back }));
+    const snap=this.history.future.pop();
+    this.setState({ cards:snap.cards, back:snap.back }, ()=>this.fixSel());
   }
   fixSel(){
     let { selCard, selEl, cards } = this.state;
     let c=cards.find(x=>x.id===selCard); if(!c){ c=cards[0]; selCard=c?c.id:null; }
-    if(c && !c.elements.find(e=>e.id===selEl)) selEl=null;
-    this.setState({ selCard, selEl });
+    // Undoing past the first flip can restore back:null — fall to front view.
+    const side = (this.state.side==='back' && !this.state.back) ? 'front' : this.state.side;
+    const cur = side==='back' ? this.state.back : c;
+    if(!cur || !cur.elements.find(e=>e.id===selEl)) selEl=null;
+    this.setState({ selCard, selEl, side });
   }
 
   setCards(cards){ this.setState({ cards }); }
-  patchCard(patch, hist){ if(hist) this.pushHistory(hist); const cards=this.state.cards.map(c=>c.id===this.state.selCard?{...c,...patch}:c); this.setState({cards}); }
+  patchCard(patch, hist){ const c=this.curCard(); if(!c) return; if(hist) this.pushHistory(hist); this.setCur({...c, ...patch}); }
   updateSelEl(patch, opts){
     opts=opts||{};
+    const c=this.curCard(); if(!c) return;
     if(opts.hist!==false) this.pushHistory(opts.key||'edit');
-    const { selCard, selEl }=this.state;
-    const cards=this.state.cards.map(c=> c.id!==selCard ? c : { ...c, elements:c.elements.map(e=> e.id!==selEl ? e : {...e,...patch}) });
-    this.setState({ cards });
+    this.setCur({ ...c, elements:c.elements.map(e=> e.id!==this.state.selEl ? e : {...e,...patch}) });
   }
   enterEdit(el){
     if(!el || el.type!=='text') return;
@@ -241,16 +266,14 @@ class CardMaker extends React.Component {
     const c=this.curCard(); if(!c) return;
     this.pushHistory('add');
     const el=this.makeEl(type,c,extra);
-    const cards=this.state.cards.map(x=>x.id!==c.id?x:{...x, elements:[...x.elements, el]});
     const editing = type==='text';
     if(editing){ this._focusEdit=true; this._selectNew=true; this._hk=null; }
-    this.setState({ cards, selEl:el.id, leftTab:'card', editEl: editing? el.id : null });
+    this.setCur({...c, elements:[...c.elements, el]}, { selEl:el.id, leftTab:'card', editEl: editing? el.id : null });
   }
   deleteEl(){
     const c=this.curCard(); if(!c||!this.state.selEl) return;
     this.pushHistory('del');
-    const cards=this.state.cards.map(x=>x.id!==c.id?x:{...x, elements:x.elements.filter(e=>e.id!==this.state.selEl)});
-    this.setState({ cards, selEl:null });
+    this.setCur({...c, elements:c.elements.filter(e=>e.id!==this.state.selEl)}, { selEl:null });
   }
   dupEl(){
     const c=this.curCard(); const el=this.curEl(); if(!c||!el) return;
@@ -258,8 +281,7 @@ class CardMaker extends React.Component {
     const ne={...this.clone(el), id:this.uid(), x:el.x+4, y:el.y+4};
     const idx=c.elements.findIndex(e=>e.id===el.id);
     const els=[...c.elements]; els.splice(idx+1,0,ne);
-    const cards=this.state.cards.map(x=>x.id!==c.id?x:{...x, elements:els});
-    this.setState({ cards, selEl:ne.id });
+    this.setCur({...c, elements:els}, { selEl:ne.id });
   }
   layer(dir){
     const c=this.curCard(); const el=this.curEl(); if(!c||!el) return;
@@ -268,8 +290,7 @@ class CardMaker extends React.Component {
     els.splice(i,1);
     let j = dir==='front'?els.length : dir==='back'?0 : dir==='up'?Math.min(els.length,i+1) : Math.max(0,i-1);
     els.splice(j,0,el);
-    const cards=this.state.cards.map(x=>x.id!==c.id?x:{...x, elements:els});
-    this.setState({ cards });
+    this.setCur({...c, elements:els});
   }
 
   setType(id){
@@ -393,8 +414,7 @@ class CardMaker extends React.Component {
     const c=this.curCard(); if(!c) return;
     this.pushHistory('tmpl');
     const els = tid==='blank' ? [] : this.templates()[tid](c.w,c.h);
-    const cards=this.state.cards.map(x=>x.id!==c.id?x:{...x, elements:els});
-    this.setState({ cards, selEl:null });
+    this.setCur({...c, elements:els}, { selEl:null });
   }
 
   buildSample(){
