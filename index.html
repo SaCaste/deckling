@@ -130,6 +130,7 @@ class CardMaker extends React.Component {
     cards:[], selCard:null, selEl:null, editEl:null,
     side:'front', back:null, duplexBacks:false,
     showBleed:true, showSafe:true, zoom:1,
+    snapOn:true, guides:[],
     stageW:900, stageH:640,
     assets:[], dragOver:false,
     leftTab:'card', modal:null, batchText:'', toast:null,
@@ -243,7 +244,7 @@ class CardMaker extends React.Component {
     opts=opts||{};
     const c=this.curCard(); if(!c) return;
     if(opts.hist!==false) this.pushHistory(opts.key||'edit');
-    this.setCur({ ...c, elements:c.elements.map(e=> e.id!==this.state.selEl ? e : {...e,...patch}) });
+    this.setCur({ ...c, elements:c.elements.map(e=> e.id!==this.state.selEl ? e : {...e,...patch}) }, opts.extra);
   }
   enterEdit(el){
     if(!el || el.type!=='text') return;
@@ -437,13 +438,50 @@ class CardMaker extends React.Component {
     return [c1,c2,c3,c4,c5];
   }
 
+  // Snap target lines (mm, trim space) for the element being dragged.
+  // Order matters for tie-breaks: card lines first, then elements in z-order.
+  buildSnapTargets(el){
+    const c=this.curCard(); if(!c) return {v:[],h:[]};
+    const v=[0, c.w/2, c.w, this.SAFE, c.w-this.SAFE];
+    const hz=[0, c.h/2, c.h, this.SAFE, c.h-this.SAFE];
+    c.elements.forEach(o=>{
+      if(o.id===el.id) return;
+      if(o.rotation){ v.push(o.x+o.w/2); hz.push(o.y+o.h/2); return; } // rotated: center only
+      v.push(o.x, o.x+o.w/2, o.x+o.w);
+      hz.push(o.y, o.y+o.h/2, o.y+o.h);
+    });
+    return { v, h:hz };
+  }
+  // Pure resolver: propose position (px,py) for a box {w,h,rotation}; snap each
+  // axis to the nearest target line within tol (mm). Strict < keeps the first
+  // (earliest-listed) line on ties. Returns snapped x/y + active guide lines.
+  snapMove(px, py, box, targets, tol){
+    const rot=!!box.rotation;
+    const candX = rot ? [box.w/2] : [0, box.w/2, box.w];
+    const candY = rot ? [box.h/2] : [0, box.h/2, box.h];
+    const solve=(p, cands, lines)=>{
+      let best=null;
+      lines.forEach(L=>cands.forEach(off=>{
+        const d=L-(p+off);
+        if(Math.abs(d)<=tol && (!best || Math.abs(d)<Math.abs(best.d))) best={d, line:L};
+      }));
+      return best;
+    };
+    const bx=solve(px,candX,targets.v), by=solve(py,candY,targets.h);
+    const guides=[];
+    if(bx) guides.push({axis:'v', pos:bx.line});
+    if(by) guides.push({axis:'h', pos:by.line});
+    return { x: bx? +(px+bx.d).toFixed(2) : +px.toFixed(1),
+             y: by? +(py+by.d).toFixed(2) : +py.toFixed(1), guides };
+  }
   onElPointerDown(e, el){
     if(e.button!==0) return;
     if(this.state.editEl===el.id) return;
     e.stopPropagation();
     this.setState({ selEl:el.id });
     this.pushHistory('move_'+el.id);
-    this.drag={ mode:'move', sx:e.clientX, sy:e.clientY, ox:el.x, oy:el.y };
+    this.drag={ mode:'move', sx:e.clientX, sy:e.clientY, ox:el.x, oy:el.y,
+      box:{w:el.w, h:el.h, rotation:el.rotation||0}, targets:this.buildSnapTargets(el) };
   }
   onHandleDown(e, el, corner){
     e.stopPropagation(); e.preventDefault();
@@ -464,7 +502,10 @@ class CardMaker extends React.Component {
     const s=this.scale;
     if(d.mode==='move'){
       const dx=(e.clientX-d.sx)/s, dy=(e.clientY-d.sy)/s;
-      this.updateSelEl({ x:+(d.ox+dx).toFixed(1), y:+(d.oy+dy).toFixed(1) }, {hist:false});
+      let r={ x:+(d.ox+dx).toFixed(1), y:+(d.oy+dy).toFixed(1), guides:[] };
+      if(this.state.snapOn && !e.altKey && d.targets)
+        r=this.snapMove(d.ox+dx, d.oy+dy, d.box, d.targets, 6/s);
+      this.updateSelEl({ x:r.x, y:r.y }, {hist:false, extra:{guides:r.guides}});
     } else if(d.mode==='resize'){
       let dx=(e.clientX-d.sx)/s, dy=(e.clientY-d.sy)/s;
       let x=d.ox,y=d.oy,w=d.ow,hh=d.oh;
@@ -482,7 +523,7 @@ class CardMaker extends React.Component {
       this.updateSelEl({ rotation:Math.round(ang) }, {hist:false});
     }
   }
-  onPointerUp(){ this.drag=null; }
+  onPointerUp(){ this.drag=null; if(this.state.guides.length) this.setState({guides:[]}); }
 
   ensureImages(cards){
     const srcs=new Set();
