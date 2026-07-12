@@ -680,7 +680,7 @@ class CardMaker extends React.Component {
   }
 
   saveJSON(){
-    const data={ app:'card-maker', version:1, cards:this.state.cards, theme:this.state.theme, accent:this.state.accent, assets:this.state.assets };
+    const data={ app:'card-maker', version:2, cards:this.state.cards, back:this.state.back, theme:this.state.theme, accent:this.state.accent, assets:this.state.assets };
     this.download('card-project.json', new Blob([JSON.stringify(data)],{type:'application/json'}));
     this.toast('Project saved');
   }
@@ -690,7 +690,7 @@ class CardMaker extends React.Component {
       const d=JSON.parse(r.result);
       if(!d.cards) throw 0;
       this.history={past:[],future:[]}; this.imgCache={};
-      this.setState({ cards:d.cards, selCard:d.cards[0]&&d.cards[0].id, selEl:null, theme:d.theme||this.state.theme, accent:d.accent||this.state.accent, assets:Array.isArray(d.assets)?d.assets:[] });
+      this.setState({ cards:d.cards, back:d.back||null, side:'front', selCard:d.cards[0]&&d.cards[0].id, selEl:null, editEl:null, theme:d.theme||this.state.theme, accent:d.accent||this.state.accent, assets:Array.isArray(d.assets)?d.assets:[] });
       this.toast('Project loaded');
     }catch(e){ this.toast('Invalid project file'); } };
     r.readAsText(file);
