@@ -122,7 +122,13 @@ class CardMaker extends React.Component {
     cards:'M8 4h11a1 1 0 0 1 1 1v11M5 7h11a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1z',
     table:'M4 5h16v14H4zM4 10h16M4 15h16M9 5v14',
     paint:'M5 3h14v6H5zM7 9v8a2 2 0 0 0 2 2h2v-4h2v4h2a2 2 0 0 0 2-2V9',
-    star:'M12 3.2l2.5 5.5 6 .6-4.5 4 1.3 5.9L12 16.9 6.2 19l1.3-5.9-4.5-4 6-.6z'
+    star:'M12 3.2l2.5 5.5 6 .6-4.5 4 1.3 5.9L12 16.9 6.2 19l1.3-5.9-4.5-4 6-.6z',
+    alCL:'M4 3v18M8 8h10v8H8z',
+    alCH:'M12 3v18M6 8h12v8H6z',
+    alCR:'M20 3v18M6 8h10v8H6z',
+    alCT:'M3 4h18M8 8h8v10H8z',
+    alCM:'M3 12h18M8 6h8v12H8z',
+    alCB:'M3 20h18M8 6h8v10H8z'
   };
 
   state = {
@@ -130,6 +136,7 @@ class CardMaker extends React.Component {
     cards:[], selCard:null, selEl:null, editEl:null,
     side:'front', back:null, duplexBacks:false,
     showBleed:true, showSafe:true, zoom:1,
+    snapOn:true, guides:[],
     stageW:900, stageH:640,
     assets:[], dragOver:false,
     leftTab:'card', modal:null, batchText:'', toast:null,
@@ -243,7 +250,7 @@ class CardMaker extends React.Component {
     opts=opts||{};
     const c=this.curCard(); if(!c) return;
     if(opts.hist!==false) this.pushHistory(opts.key||'edit');
-    this.setCur({ ...c, elements:c.elements.map(e=> e.id!==this.state.selEl ? e : {...e,...patch}) });
+    this.setCur({ ...c, elements:c.elements.map(e=> e.id!==this.state.selEl ? e : {...e,...patch}) }, opts.extra);
   }
   enterEdit(el){
     if(!el || el.type!=='text') return;
@@ -437,13 +444,50 @@ class CardMaker extends React.Component {
     return [c1,c2,c3,c4,c5];
   }
 
+  // Snap target lines (mm, trim space) for the element being dragged.
+  // Order matters for tie-breaks: card lines first, then elements in z-order.
+  buildSnapTargets(el){
+    const c=this.curCard(); if(!c) return {v:[],h:[]};
+    const v=[0, c.w/2, c.w, this.SAFE, c.w-this.SAFE];
+    const hz=[0, c.h/2, c.h, this.SAFE, c.h-this.SAFE];
+    c.elements.forEach(o=>{
+      if(o.id===el.id) return;
+      if(o.rotation){ v.push(o.x+o.w/2); hz.push(o.y+o.h/2); return; } // rotated: center only
+      v.push(o.x, o.x+o.w/2, o.x+o.w);
+      hz.push(o.y, o.y+o.h/2, o.y+o.h);
+    });
+    return { v, h:hz };
+  }
+  // Pure resolver: propose position (px,py) for a box {w,h,rotation}; snap each
+  // axis to the nearest target line within tol (mm). Strict < keeps the first
+  // (earliest-listed) line on ties. Returns snapped x/y + active guide lines.
+  snapMove(px, py, box, targets, tol){
+    const rot=!!box.rotation;
+    const candX = rot ? [box.w/2] : [0, box.w/2, box.w];
+    const candY = rot ? [box.h/2] : [0, box.h/2, box.h];
+    const solve=(p, cands, lines)=>{
+      let best=null;
+      lines.forEach(L=>cands.forEach(off=>{
+        const d=L-(p+off);
+        if(Math.abs(d)<=tol && (!best || Math.abs(d)<Math.abs(best.d))) best={d, line:L};
+      }));
+      return best;
+    };
+    const bx=solve(px,candX,targets.v), by=solve(py,candY,targets.h);
+    const guides=[];
+    if(bx) guides.push({axis:'v', pos:bx.line});
+    if(by) guides.push({axis:'h', pos:by.line});
+    return { x: bx? +(px+bx.d).toFixed(2) : +px.toFixed(1),
+             y: by? +(py+by.d).toFixed(2) : +py.toFixed(1), guides };
+  }
   onElPointerDown(e, el){
     if(e.button!==0) return;
     if(this.state.editEl===el.id) return;
     e.stopPropagation();
     this.setState({ selEl:el.id });
     this.pushHistory('move_'+el.id);
-    this.drag={ mode:'move', sx:e.clientX, sy:e.clientY, ox:el.x, oy:el.y };
+    this.drag={ mode:'move', sx:e.clientX, sy:e.clientY, ox:el.x, oy:el.y,
+      box:{w:el.w, h:el.h, rotation:el.rotation||0}, targets:this.buildSnapTargets(el) };
   }
   onHandleDown(e, el, corner){
     e.stopPropagation(); e.preventDefault();
@@ -464,7 +508,10 @@ class CardMaker extends React.Component {
     const s=this.scale;
     if(d.mode==='move'){
       const dx=(e.clientX-d.sx)/s, dy=(e.clientY-d.sy)/s;
-      this.updateSelEl({ x:+(d.ox+dx).toFixed(1), y:+(d.oy+dy).toFixed(1) }, {hist:false});
+      let r={ x:+(d.ox+dx).toFixed(1), y:+(d.oy+dy).toFixed(1), guides:[] };
+      if(this.state.snapOn && !e.altKey && d.targets)
+        r=this.snapMove(d.ox+dx, d.oy+dy, d.box, d.targets, 6/s);
+      this.updateSelEl({ x:r.x, y:r.y }, {hist:false, extra:{guides:r.guides}});
     } else if(d.mode==='resize'){
       let dx=(e.clientX-d.sx)/s, dy=(e.clientY-d.sy)/s;
       let x=d.ox,y=d.oy,w=d.ow,hh=d.oh;
@@ -482,7 +529,7 @@ class CardMaker extends React.Component {
       this.updateSelEl({ rotation:Math.round(ang) }, {hist:false});
     }
   }
-  onPointerUp(){ this.drag=null; }
+  onPointerUp(){ this.drag=null; if(this.state.guides.length) this.setState({guides:[]}); }
 
   ensureImages(cards){
     const srcs=new Set();
@@ -1000,6 +1047,18 @@ class CardMaker extends React.Component {
       rows.push(this.field('Width',this.slider(el.strokeWidth||0,0,6,.2,v=>upd({strokeWidth:v},'sw'))));
       if(el.shape==='rect') rows.push(this.field('Radius',this.slider(el.radius||0,0,15,.5,v=>upd({radius:v},'rad'))));
     }
+    const cc=this.curCard();
+    if(cc){
+      const alignBtn=(icon,title,patch)=>this.iconBtn(icon,()=>this.updateSelEl(patch(),{key:'align'}),{title});
+      rows.push(this.field('Align to card', h('div',{key:'alg',style:{display:'flex',gap:6}},
+        alignBtn('alCL','Align left',()=>({x:0})),
+        alignBtn('alCH','Center horizontally',()=>({x:+((cc.w-el.w)/2).toFixed(1)})),
+        alignBtn('alCR','Align right',()=>({x:+(cc.w-el.w).toFixed(1)})),
+        h('div',{style:{width:1,background:t.line}}),
+        alignBtn('alCT','Align top',()=>({y:0})),
+        alignBtn('alCM','Center vertically',()=>({y:+((cc.h-el.h)/2).toFixed(1)})),
+        alignBtn('alCB','Align bottom',()=>({y:+(cc.h-el.h).toFixed(1)})))));
+    }
     rows.push(h('div',{key:'act',style:{display:'flex',gap:6,marginTop:4,paddingTop:12,borderTop:'1px solid '+t.line}},
       this.iconBtn('up',()=>this.layer('up'),{title:'Bring forward'}),
       this.iconBtn('down',()=>this.layer('down'),{title:'Send backward'}),
@@ -1231,6 +1290,11 @@ class CardMaker extends React.Component {
     if(interactive){
       if(this.state.showBleed) children.push(h('div',{key:'trim',style:{position:'absolute',left:B*s,top:B*s,width:card.w*s,height:card.h*s,outline:'1px dashed rgba(220,60,60,.6)',pointerEvents:'none'}}));
       if(this.state.showSafe) children.push(h('div',{key:'safe',style:{position:'absolute',left:(B+this.SAFE)*s,top:(B+this.SAFE)*s,width:(card.w-2*this.SAFE)*s,height:(card.h-2*this.SAFE)*s,outline:'1px dashed rgba(60,130,250,.5)',pointerEvents:'none'}}));
+      this.state.guides.forEach((g,i)=>{
+        children.push(h('div',{key:'gd'+i,style: g.axis==='v'
+          ? {position:'absolute',left:(g.pos+B)*s-0.5,top:0,width:1,height:ph,background:'#ff4d94',pointerEvents:'none',zIndex:5}
+          : {position:'absolute',top:(g.pos+B)*s-0.5,left:0,height:1,width:pw,background:'#ff4d94',pointerEvents:'none',zIndex:5}}));
+      });
     }
     return h('div',{ref:interactive?(n=>this.faceEl=n):undefined,
       onPointerDown:interactive?(e=>{ if(e.target===e.currentTarget) this.setState({selEl:null}); }):undefined,
@@ -1259,6 +1323,7 @@ class CardMaker extends React.Component {
         h('div',{style:{width:1,height:18,background:t.border}}),
         toggle('showBleed','Bleed','rgba(220,60,60,.8)'),
         toggle('showSafe','Safe','rgba(60,130,250,.8)'),
+        toggle('snapOn','Snap','rgba(255,77,148,.8)'),
         h('div',{style:{width:1,height:18,background:t.border}}),
         h('div',{style:{fontSize:11.5,color:t.sub,fontWeight:600,padding:'0 2px'}}, c?(c.w+' × '+c.h+' mm'):'')),
       h('div',{ref:n=>this.stageEl=n,

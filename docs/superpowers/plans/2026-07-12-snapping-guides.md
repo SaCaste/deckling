@@ -190,13 +190,15 @@ let r=snapMove(22.2,50,{w:18,h:18},T,0.5); console.log('center:',r.x===22.5&&r.g
 r=snapMove(9.7,50,{w:18,h:18},T,0.5); console.log('edge:',r.x===10?'OK':'FAIL '+JSON.stringify(r));
 // 3: out of tolerance — x unchanged (1-decimal rounded)
 r=snapMove(24.83,50,{w:18,h:18},T,0.5); console.log('free:',r.x===24.8&&r.guides.length===0?'OK':'FAIL '+JSON.stringify(r));
-// 4: rotated box — only center candidate; edge line 10 at proposed 9.7 must NOT snap (center 18.7 far from all)
-r=snapMove(9.7,50,{w:18,h:18,rotation:30},T,0.5); console.log('rotated:',r.x===9.7&&r.guides.length===0?'OK':'FAIL '+JSON.stringify(r));
-// 5: tie-break — card line 31.5 listed before an element line also at 31.5 (append dup): first wins (same pos, so just assert snap works)
+// 4a: rotated box — edge candidates suppressed. Use a target set WITHOUT line 19 (T's line 19 sits 0.3 from the rotated center 18.7 and legitimately center-snaps — bad test data in v1 of this plan):
+const T2={v:[0,31.5,63,3.5,59.5,10,28],h:[0,44,88,3.5,84.5]};
+r=snapMove(9.7,50,{w:18,h:18,rotation:30},T2,0.5); console.log('rot-no-edge-snap:',r.x===9.7&&r.guides.length===0?'OK':'FAIL '+JSON.stringify(r));
+// 4b: rotated box still snaps BY CENTER: center 31.2 -> card line 31.5 -> x=22.5
+r=snapMove(22.2,50,{w:18,h:18,rotation:30},T2,0.5); console.log('rot-center-snap:',r.x===22.5&&r.guides[0].pos===31.5?'OK':'FAIL '+JSON.stringify(r));
 "
 ```
 
-Expected: `center: OK`, `edge: OK`, `free: OK`, `rotated: OK`.
+Expected: `center: OK`, `edge: OK`, `free: OK`, `rot-no-edge-snap: OK`, `rot-center-snap: OK`.
 
 - [ ] **Step 8: Commit**
 

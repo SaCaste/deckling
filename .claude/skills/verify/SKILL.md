@@ -35,6 +35,8 @@ const ctx = await browser.newContext({ acceptDownloads: true, viewport: { width:
 - Save project: `page.locator('[title="Save project (JSON)"]')`. Load: `page.locator('input[type=file][accept*="json"]').setInputFiles(path)` — then expect toast `Project loaded`.
 - Downloads (PDF/PNG/JSON): `Promise.all([page.waitForEvent('download'), button.click()])`, then `download.saveAs(...)`; check `suggestedFilename()`.
 - New text elements auto-enter inline edit with placeholder selected — just `keyboard.type(...)` then `Escape`.
+- **Locator trap:** `getByText('X').first()` for a canvas text element can match the LEFT-PANEL inspector textarea (x≈27) or the deck thumbnail instead — drags then silently no-op and positions read as false-positives (new text is born centered!). Always pick the match whose `boundingBox().x` is inside the canvas region (~320–1280 at 1600px viewport), and guard every drag test with an "element actually moved" assertion first.
+- Drag-snap assertions: calibrate px/mm with a snap-off drag (`Δpx / Δmm` from saved JSON), and place targets away from competing snap lines (same-width elements align on all three lines at once; the safe inset 59.5 is a frequent nearer-line winner).
 - Undo/redo: `Control+z` / `Control+y` on `page.keyboard`.
 - Collect `page.on('pageerror')` + console errors; the only expected 404 is `/favicon.ico`.
 
