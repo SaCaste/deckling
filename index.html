@@ -552,6 +552,7 @@ class CardMaker extends React.Component {
     const s=this.scale;
     if(d.mode==='gmove'){
       if(Math.abs(e.clientX-d.sx)+Math.abs(e.clientY-d.sy)>3) d.moved=true;
+      if(!d.moved) return; // a click must stay a pure demote — no write, no snap-jump
       const dx=(e.clientX-d.sx)/s, dy=(e.clientY-d.sy)/s;
       let nx=d.bb.x+dx, ny=d.bb.y+dy, guides=[];
       if(this.state.snapOn && !e.altKey){
