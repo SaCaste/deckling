@@ -515,7 +515,7 @@ class CardMaker extends React.Component {
       const members=this.selList().map(m=>({id:m.id, x:m.x, y:m.y}));
       const bb=this.selBBox();
       this.pushHistory('gmove');
-      this.drag={ mode:'gmove', sx:e.clientX, sy:e.clientY, members, bb,
+      this.drag={ mode:'gmove', sx:e.clientX, sy:e.clientY, startId:el.id, moved:false, members, bb,
         targets:this.buildSnapTargets(null, S) };
       return;
     }
