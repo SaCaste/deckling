@@ -550,7 +550,21 @@ class CardMaker extends React.Component {
   onPointerMove(e){
     const d=this.drag; if(!d) return;
     const s=this.scale;
-    if(d.mode==='move'){
+    if(d.mode==='gmove'){
+      if(Math.abs(e.clientX-d.sx)+Math.abs(e.clientY-d.sy)>3) d.moved=true;
+      const dx=(e.clientX-d.sx)/s, dy=(e.clientY-d.sy)/s;
+      let nx=d.bb.x+dx, ny=d.bb.y+dy, guides=[];
+      if(this.state.snapOn && !e.altKey){
+        const r=this.snapMove(nx, ny, {w:d.bb.w, h:d.bb.h}, d.targets, 6/s);
+        nx=r.x; ny=r.y; guides=r.guides;
+      } else { nx=+nx.toFixed(1); ny=+ny.toFixed(1); }
+      const ddx=nx-d.bb.x, ddy=ny-d.bb.y;
+      const pos={}; d.members.forEach(m=>{ pos[m.id]={ x:+(m.x+ddx).toFixed(2), y:+(m.y+ddy).toFixed(2) }; });
+      const c=this.curCard(); if(!c) return;
+      this.setCur({ ...c, elements:c.elements.map(el=> pos[el.id] ? {...el, ...pos[el.id]} : el) }, { guides });
+      return;
+    }
+    else if(d.mode==='move'){
       const dx=(e.clientX-d.sx)/s, dy=(e.clientY-d.sy)/s;
       let r={ x:+(d.ox+dx).toFixed(1), y:+(d.oy+dy).toFixed(1), guides:[] };
       if(this.state.snapOn && !e.altKey && d.targets)
@@ -589,6 +603,7 @@ class CardMaker extends React.Component {
       this.setSelection(ids, { marquee:null });
       return;
     }
+    if(d && d.mode==='gmove' && !d.moved) this.setState({ selEl:d.startId, selEls:[] });
     if(this.state.guides.length) this.setState({guides:[]});
   }
 
