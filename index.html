@@ -128,12 +128,15 @@ class CardMaker extends React.Component {
     alCR:'M20 3v18M6 8h10v8H6z',
     alCT:'M3 4h18M8 8h8v10H8z',
     alCM:'M3 12h18M8 6h8v12H8z',
-    alCB:'M3 20h18M8 6h8v10H8z'
+    alCB:'M3 20h18M8 6h8v10H8z',
+    distH:'M3 4v16M21 4v16M9 8h6v8H9z',
+    distV:'M4 3h16M4 21h16M8 9h8v6H8z'
   };
 
   state = {
     theme:'studio', accent:'#10b981',
     cards:[], selCard:null, selEl:null, editEl:null,
+    selEls:[], marquee:null,
     side:'front', back:null, duplexBacks:false,
     showBleed:true, showSafe:true, zoom:1,
     snapOn:true, guides:[],
@@ -177,11 +180,14 @@ class CardMaker extends React.Component {
     const tag = (e.target && e.target.tagName) || '';
     if(tag==='INPUT' || tag==='TEXTAREA') return;
     const mod = e.metaKey || e.ctrlKey;
+    const multi = this.state.selEls.length>=2;
     if(mod && e.key.toLowerCase()==='z'){ e.preventDefault(); if(e.shiftKey) this.redo(); else this.undo(); }
     else if(mod && e.key.toLowerCase()==='y'){ e.preventDefault(); this.redo(); }
-    else if(mod && e.key.toLowerCase()==='d'){ e.preventDefault(); this.dupEl(); }
+    else if(mod && e.key.toLowerCase()==='d'){ e.preventDefault(); if(multi) this.dupSels(); else this.dupEl(); }
+    else if(mod && e.key.toLowerCase()==='a'){ e.preventDefault(); const c=this.curCard(); if(c) this.setSelection(c.elements.map(x=>x.id)); }
     else if((e.key==='Enter'||e.key==='F2') && this.state.selEl && !this.state.editEl){ const el=this.curEl(); if(el && el.type==='text'){ e.preventDefault(); this.enterEdit(el); } }
-    else if((e.key==='Delete'||e.key==='Backspace') && this.state.selEl){ e.preventDefault(); this.deleteEl(); }
+    else if((e.key==='Delete'||e.key==='Backspace') && (this.state.selEl||multi)){ e.preventDefault(); if(multi) this.deleteSels(); else this.deleteEl(); }
+    else if(e.key==='Escape' && !this.state.editEl && (this.state.selEl||this.state.selEls.length)){ this.setState({ selEl:null, selEls:[] }); }
   }
 
   th(){ return this.THEMES[this.state.theme]; }
@@ -193,6 +199,19 @@ class CardMaker extends React.Component {
   frontCard(){ return this.state.cards.find(c=>c.id===this.state.selCard) || null; }
   curCard(){ return this.isBack() ? this.state.back : this.frontCard(); }
   curEl(){ const c=this.curCard(); if(!c) return null; return c.elements.find(e=>e.id===this.state.selEl) || null; }
+  // Normalize selection to the invariant: 0 ids -> none, 1 -> single selEl, 2+ -> multi selEls.
+  setSelection(ids, extra){
+    const u=[...new Set(ids)];
+    if(u.length>=2) this.setState({ selEls:u, selEl:null, editEl:null, ...(extra||{}) });
+    else this.setState({ selEls:[], selEl:u[0]||null, editEl:null, ...(extra||{}) });
+  }
+  selList(){ const c=this.curCard(); if(!c) return []; return c.elements.filter(e=>this.state.selEls.includes(e.id)); }
+  selBBox(){
+    const els=this.selList(); if(!els.length) return null;
+    const x0=Math.min(...els.map(e=>e.x)), y0=Math.min(...els.map(e=>e.y));
+    const x1=Math.max(...els.map(e=>e.x+e.w)), y1=Math.max(...els.map(e=>e.y+e.h));
+    return { x:x0, y:y0, w:x1-x0, h:y1-y0 };
+  }
   // Write the updated card object back to whichever side is on canvas.
   setCur(next, extra){
     if(this.isBack()) this.setState({ back:next, ...(extra||{}) });
@@ -209,7 +228,7 @@ class CardMaker extends React.Component {
   flipSide(){
     const side = this.isBack() ? 'front' : 'back';
     this._hk=null; // break undo coalescing across sides
-    const patch = { side, selEl:null, editEl:null };
+    const patch = { side, selEl:null, selEls:[], editEl:null, marquee:null };
     if(side==='back' && !this.state.back) patch.back=this.defaultBack(this.frontCard());
     this.setState(patch);
   }
@@ -241,7 +260,9 @@ class CardMaker extends React.Component {
     const side = (this.state.side==='back' && !this.state.back) ? 'front' : this.state.side;
     const cur = side==='back' ? this.state.back : c;
     if(!cur || !cur.elements.find(e=>e.id===selEl)) selEl=null;
-    this.setState({ selCard, selEl, side });
+    let selEls=this.state.selEls.filter(id=>cur && cur.elements.find(e=>e.id===id));
+    if(selEls.length===1){ selEl=selEls[0]; selEls=[]; }
+    this.setState({ selCard, selEl, selEls, side });
   }
 
   setCards(cards){ this.setState({ cards }); }
@@ -289,6 +310,49 @@ class CardMaker extends React.Component {
     const idx=c.elements.findIndex(e=>e.id===el.id);
     const els=[...c.elements]; els.splice(idx+1,0,ne);
     this.setCur({...c, elements:els}, { selEl:ne.id });
+  }
+  deleteSels(){
+    const c=this.curCard(); if(!c || this.state.selEls.length<2) return;
+    this.pushHistory('gdel');
+    const S=this.state.selEls;
+    this.setCur({ ...c, elements:c.elements.filter(e=>!S.includes(e.id)) }, { selEls:[], selEl:null });
+  }
+  dupSels(){
+    const c=this.curCard(); if(!c || this.state.selEls.length<2) return;
+    this.pushHistory('gdup');
+    const S=this.state.selEls;
+    const clones=c.elements.filter(e=>S.includes(e.id)).map(e=>({ ...this.clone(e), id:this.uid(), x:+(e.x+4).toFixed(1), y:+(e.y+4).toFixed(1) }));
+    this.setCur({ ...c, elements:[...c.elements, ...clones] }, { selEls:clones.map(e=>e.id), selEl:null });
+  }
+  alignSels(edge){
+    const c=this.curCard(); const bb=this.selBBox(); if(!c || !bb || this.state.selEls.length<2) return;
+    this.pushHistory('galign');
+    const S=this.state.selEls;
+    this.setCur({ ...c, elements:c.elements.map(e=>{
+      if(!S.includes(e.id)) return e;
+      if(edge==='l')  return {...e, x:+bb.x.toFixed(1)};
+      if(edge==='ch') return {...e, x:+(bb.x+(bb.w-e.w)/2).toFixed(1)};
+      if(edge==='r')  return {...e, x:+(bb.x+bb.w-e.w).toFixed(1)};
+      if(edge==='t')  return {...e, y:+bb.y.toFixed(1)};
+      if(edge==='cm') return {...e, y:+(bb.y+(bb.h-e.h)/2).toFixed(1)};
+      return {...e, y:+(bb.y+bb.h-e.h).toFixed(1)}; // 'b'
+    }) });
+  }
+  distributeSels(axis){
+    const c=this.curCard(); if(!c || this.state.selEls.length<3) return;
+    this.pushHistory('gdist');
+    const S=this.state.selEls;
+    const mem=c.elements.filter(e=>S.includes(e.id));
+    const p=axis==='h'?'x':'y', dim=axis==='h'?'w':'h';
+    const sorted=[...mem].sort((a,b)=>a[p]-b[p]);
+    const first=sorted[0], last=sorted[sorted.length-1];
+    const span=(last[p]+last[dim])-first[p];
+    const total=sorted.reduce((sum,e)=>sum+e[dim],0);
+    const gap=(span-total)/(sorted.length-1);
+    const pos={}; let cur=first[p];
+    sorted.forEach(e=>{ pos[e.id]=+cur.toFixed(1); cur+=e[dim]+gap; });
+    pos[last.id]=+last[p].toFixed(1); // outer two stay fixed exactly (no rounding drift)
+    this.setCur({ ...c, elements:c.elements.map(e=> S.includes(e.id) ? {...e, [p]:pos[e.id]} : e) });
   }
   layer(dir){
     const c=this.curCard(); const el=this.curEl(); if(!c||!el) return;
@@ -446,12 +510,13 @@ class CardMaker extends React.Component {
 
   // Snap target lines (mm, trim space) for the element being dragged.
   // Order matters for tie-breaks: card lines first, then elements in z-order.
-  buildSnapTargets(el){
+  buildSnapTargets(el, excludeIds){
     const c=this.curCard(); if(!c) return {v:[],h:[]};
+    const ex=excludeIds||[];
     const v=[0, c.w/2, c.w, this.SAFE, c.w-this.SAFE];
     const hz=[0, c.h/2, c.h, this.SAFE, c.h-this.SAFE];
     c.elements.forEach(o=>{
-      if(o.id===el.id) return;
+      if((el && o.id===el.id) || ex.includes(o.id)) return;
       if(o.rotation){ v.push(o.x+o.w/2); hz.push(o.y+o.h/2); return; } // rotated: center only
       v.push(o.x, o.x+o.w/2, o.x+o.w);
       hz.push(o.y, o.y+o.h/2, o.y+o.h);
@@ -480,11 +545,38 @@ class CardMaker extends React.Component {
     return { x: bx? +(px+bx.d).toFixed(2) : +px.toFixed(1),
              y: by? +(py+by.d).toFixed(2) : +py.toFixed(1), guides };
   }
+  faceMM(e){
+    const r=this.faceEl.getBoundingClientRect(), s=this.scale, B=this.B;
+    return { x:(e.clientX-r.left)/s-B, y:(e.clientY-r.top)/s-B };
+  }
+  onFaceDown(e){
+    if(e.button!==0) return;
+    const p=this.faceMM(e);
+    this.drag={ mode:'marquee', sx:e.clientX, sy:e.clientY, x0:p.x, y0:p.y, moved:false };
+  }
   onElPointerDown(e, el){
     if(e.button!==0) return;
     if(this.state.editEl===el.id) return;
     e.stopPropagation();
-    this.setState({ selEl:el.id });
+    const S=this.state.selEls;
+    if(e.shiftKey){
+      // selection toggle only — never starts a drag (spec §3)
+      if(S.length) this.setSelection(S.includes(el.id) ? S.filter(i=>i!==el.id) : [...S, el.id]);
+      else if(this.state.selEl && this.state.selEl!==el.id) this.setSelection([this.state.selEl, el.id]);
+      else if(this.state.selEl===el.id) this.setSelection([]);
+      else this.setState({ selEl:el.id });
+      return;
+    }
+    if(S.includes(el.id)){
+      // drag the whole selection (move handler lands in a later task)
+      const members=this.selList().map(m=>({id:m.id, x:m.x, y:m.y}));
+      const bb=this.selBBox();
+      this.pushHistory('gmove');
+      this.drag={ mode:'gmove', sx:e.clientX, sy:e.clientY, startId:el.id, moved:false, members, bb,
+        targets:this.buildSnapTargets(null, S) };
+      return;
+    }
+    this.setState({ selEl:el.id, selEls:[] });
     this.pushHistory('move_'+el.id);
     this.drag={ mode:'move', sx:e.clientX, sy:e.clientY, ox:el.x, oy:el.y,
       box:{w:el.w, h:el.h, rotation:el.rotation||0}, targets:this.buildSnapTargets(el) };
@@ -506,7 +598,22 @@ class CardMaker extends React.Component {
   onPointerMove(e){
     const d=this.drag; if(!d) return;
     const s=this.scale;
-    if(d.mode==='move'){
+    if(d.mode==='gmove'){
+      if(Math.abs(e.clientX-d.sx)+Math.abs(e.clientY-d.sy)>3) d.moved=true;
+      if(!d.moved) return; // a click must stay a pure demote — no write, no snap-jump
+      const dx=(e.clientX-d.sx)/s, dy=(e.clientY-d.sy)/s;
+      let nx=d.bb.x+dx, ny=d.bb.y+dy, guides=[];
+      if(this.state.snapOn && !e.altKey){
+        const r=this.snapMove(nx, ny, {w:d.bb.w, h:d.bb.h}, d.targets, 6/s);
+        nx=r.x; ny=r.y; guides=r.guides;
+      } else { nx=+nx.toFixed(1); ny=+ny.toFixed(1); }
+      const ddx=nx-d.bb.x, ddy=ny-d.bb.y;
+      const pos={}; d.members.forEach(m=>{ pos[m.id]={ x:+(m.x+ddx).toFixed(2), y:+(m.y+ddy).toFixed(2) }; });
+      const c=this.curCard(); if(!c) return;
+      this.setCur({ ...c, elements:c.elements.map(el=> pos[el.id] ? {...el, ...pos[el.id]} : el) }, { guides });
+      return;
+    }
+    else if(d.mode==='move'){
       const dx=(e.clientX-d.sx)/s, dy=(e.clientY-d.sy)/s;
       let r={ x:+(d.ox+dx).toFixed(1), y:+(d.oy+dy).toFixed(1), guides:[] };
       if(this.state.snapOn && !e.altKey && d.targets)
@@ -528,8 +635,26 @@ class CardMaker extends React.Component {
       if(e.shiftKey) ang=Math.round(ang/15)*15;
       this.updateSelEl({ rotation:Math.round(ang) }, {hist:false});
     }
+    else if(d.mode==='marquee'){
+      if(Math.abs(e.clientX-d.sx)+Math.abs(e.clientY-d.sy)>3) d.moved=true;
+      const p=this.faceMM(e);
+      this.setState({ marquee:{ x0:d.x0, y0:d.y0, x1:p.x, y1:p.y } });
+    }
   }
-  onPointerUp(){ this.drag=null; if(this.state.guides.length) this.setState({guides:[]}); }
+  onPointerUp(){
+    const d=this.drag; this.drag=null;
+    if(d && d.mode==='marquee'){
+      const m=this.state.marquee;
+      if(!d.moved || !m){ this.setState({ selEl:null, selEls:[], editEl:null, marquee:null }); return; }
+      const x0=Math.min(m.x0,m.x1), x1=Math.max(m.x0,m.x1), y0=Math.min(m.y0,m.y1), y1=Math.max(m.y0,m.y1);
+      const c=this.curCard();
+      const ids=(c?c.elements:[]).filter(el=> el.x<x1 && el.x+el.w>x0 && el.y<y1 && el.y+el.h>y0).map(el=>el.id);
+      this.setSelection(ids, { marquee:null });
+      return;
+    }
+    if(d && d.mode==='gmove' && !d.moved) this.setState({ selEl:d.startId, selEls:[] });
+    if(this.state.guides.length) this.setState({guides:[]});
+  }
 
   ensureImages(cards){
     const srcs=new Set();
@@ -737,7 +862,7 @@ class CardMaker extends React.Component {
       const d=JSON.parse(r.result);
       if(!d.cards) throw 0;
       this.history={past:[],future:[]}; this.imgCache={};
-      this.setState({ cards:d.cards, back:d.back||null, side:'front', selCard:d.cards[0]&&d.cards[0].id, selEl:null, editEl:null, theme:d.theme||this.state.theme, accent:d.accent||this.state.accent, assets:Array.isArray(d.assets)?d.assets:[] });
+      this.setState({ cards:d.cards, back:d.back||null, side:'front', selCard:d.cards[0]&&d.cards[0].id, selEl:null, selEls:[], marquee:null, editEl:null, theme:d.theme||this.state.theme, accent:d.accent||this.state.accent, assets:Array.isArray(d.assets)?d.assets:[] });
       this.toast('Project loaded');
     }catch(e){ this.toast('Invalid project file'); } };
     r.readAsText(file);
@@ -1002,8 +1127,31 @@ class CardMaker extends React.Component {
         this.uIcon('download',16,'#fff'),'Export PDF'));
   }
 
+  renderMultiPanel(){
+    const t=this.th(), h=this.h, n=this.state.selEls.length;
+    const rows=[];
+    rows.push(this.field('Align selection', h('div',{key:'galg',style:{display:'flex',gap:6}},
+      this.iconBtn('alCL',()=>this.alignSels('l'),{title:'Align lefts'}),
+      this.iconBtn('alCH',()=>this.alignSels('ch'),{title:'Align centers (H)'}),
+      this.iconBtn('alCR',()=>this.alignSels('r'),{title:'Align rights'}),
+      h('div',{style:{width:1,background:t.line}}),
+      this.iconBtn('alCT',()=>this.alignSels('t'),{title:'Align tops'}),
+      this.iconBtn('alCM',()=>this.alignSels('cm'),{title:'Align middles (V)'}),
+      this.iconBtn('alCB',()=>this.alignSels('b'),{title:'Align bottoms'}))));
+    rows.push(this.field('Distribute', h('div',{key:'gdst',style:{display:'flex',gap:6,opacity:n>=3?1:0.4,pointerEvents:n>=3?'auto':'none'}},
+      this.iconBtn('distH',()=>this.distributeSels('h'),{title:'Distribute horizontally'}),
+      this.iconBtn('distV',()=>this.distributeSels('v'),{title:'Distribute vertically'}))));
+    rows.push(h('div',{key:'gact',style:{display:'flex',gap:6,marginTop:4,paddingTop:12,borderTop:'1px solid '+t.line}},
+      this.iconBtn('copy',()=>this.dupSels(),{title:'Duplicate selection (⌘D)'}),
+      h('div',{style:{flex:1}}),
+      this.iconBtn(this.uIcon('trash',16,'#d4584a'),()=>this.deleteSels(),{title:'Delete selection'})));
+    return this.section('Inspector · '+n+' selected', 'layers',
+      h('div',{style:{background:t.panel2,border:'1px solid '+t.border,borderRadius:10,padding:'12px 12px 4px'}},rows));
+  }
   renderInspector(){
-    const t=this.th(), h=this.h, el=this.curEl();
+    const t=this.th(), h=this.h;
+    if(this.state.selEls.length>=2) return this.renderMultiPanel();
+    const el=this.curEl();
     if(!el) return null;
     const upd=(p,k)=>this.updateSelEl(p,{key:k});
     const rows=[];
@@ -1220,7 +1368,7 @@ class CardMaker extends React.Component {
   }
 
   renderElDOM(el, s, interactive){
-    const h=this.h, B=this.B, sel=interactive && el.id===this.state.selEl, A=this.ac();
+    const h=this.h, B=this.B, sel=interactive && el.id===this.state.selEl, inSel=interactive && this.state.selEls.includes(el.id), A=this.ac();
     const wrap={ position:'absolute', left:(el.x+B)*s, top:(el.y+B)*s, width:el.w*s, height:el.h*s,
       transform:'rotate('+(el.rotation||0)+'deg)', transformOrigin:'center', opacity:el.opacity==null?1:el.opacity,
       cursor:interactive?(this.state.editEl===el.id?'text':'move'):'default' };
@@ -1255,9 +1403,9 @@ class CardMaker extends React.Component {
       }
     }
     const children=[inner];
-    if(sel){
+    if(sel || inSel){
       children.push(h('div',{key:'sel',style:{position:'absolute',inset:-1,border:'1.5px solid '+A,borderRadius:el.type==='shape'&&el.shape==='circle'?'50%':3,pointerEvents:'none'}}));
-      if(this.state.editEl!==el.id){
+      if(sel && this.state.editEl!==el.id){
         ['nw','ne','sw','se','n','s','e','w'].forEach(cn=>{
           const pos={nw:[0,0],n:[50,0],ne:[100,0],e:[100,50],se:[100,100],s:[50,100],sw:[0,100],w:[0,50]}[cn];
           const curs={nw:'nwse-resize',se:'nwse-resize',ne:'nesw-resize',sw:'nesw-resize',n:'ns-resize',s:'ns-resize',e:'ew-resize',w:'ew-resize'}[cn];
@@ -1295,9 +1443,18 @@ class CardMaker extends React.Component {
           ? {position:'absolute',left:(g.pos+B)*s-0.5,top:0,width:1,height:ph,background:'#ff4d94',pointerEvents:'none',zIndex:5}
           : {position:'absolute',top:(g.pos+B)*s-0.5,left:0,height:1,width:pw,background:'#ff4d94',pointerEvents:'none',zIndex:5}}));
       });
+      if(this.state.selEls.length>=2){
+        const gb=this.selBBox();
+        if(gb) children.push(h('div',{key:'gbb',style:{position:'absolute',left:(gb.x+B)*s,top:(gb.y+B)*s,width:gb.w*s,height:gb.h*s,outline:'1.5px dashed '+this.ac(),pointerEvents:'none',zIndex:4}}));
+      }
+      if(this.state.marquee){
+        const m=this.state.marquee;
+        const mx=Math.min(m.x0,m.x1), my=Math.min(m.y0,m.y1), mw=Math.abs(m.x1-m.x0), mh=Math.abs(m.y1-m.y0);
+        children.push(h('div',{key:'mq',style:{position:'absolute',left:(mx+B)*s,top:(my+B)*s,width:mw*s,height:mh*s,border:'1px dashed '+this.ac(),background:this.ac()+'10',pointerEvents:'none',zIndex:6}}));
+      }
     }
     return h('div',{ref:interactive?(n=>this.faceEl=n):undefined,
-      onPointerDown:interactive?(e=>{ if(e.target===e.currentTarget) this.setState({selEl:null}); }):undefined,
+      onPointerDown:interactive?(e=>{ if(e.target===e.currentTarget) this.onFaceDown(e); }):undefined,
       style:{position:'relative',width:pw,height:ph,background:bgStyle,borderRadius:interactive?2:1,overflow:'hidden',flex:'none'}},children);
   }
 

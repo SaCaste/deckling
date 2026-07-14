@@ -693,3 +693,13 @@ Expected: every CHECK `OK`, `ERRORS: none`. Inspect `01-two-selected.png` (outli
 - **Type consistency:** `setSelection(ids, extra)`, `selList()`, `selBBox()`, `buildSnapTargets(el, excludeIds)`, drag fields `members/bb/targets`, ops `deleteSels/dupSels/alignSels(edge)/distributeSels(axis)`, icons `distH/distV` — names match across all tasks.
 - **Ordering note:** Task 1 introduces the `'gmove'` drag object before Task 3 adds its move handler — between commits, dragging a multi-selection is a deliberate no-op (documented in Task 1 Step 8's expectations).
 - **No placeholders:** all code steps carry complete code; the verification script is fully written.
+
+---
+
+## Addendum — Task 1 code review (2026-07-13)
+
+Spec §1's "plain click on a member demotes to that single element" needs explicit delivery (pointerdown commits to `'gmove'`, so the demote must happen on a zero-movement release):
+
+- Task 1 (done, this addendum's commit): the `'gmove'` drag object now carries `startId:el.id, moved:false`.
+- Task 3: the `gmove` branch of `onPointerMove` must set `d.moved=true` once movement exceeds the 3-screen-px threshold (`Math.abs(e.clientX-d.sx)+Math.abs(e.clientY-d.sy)>3`), and `onPointerUp` gains a `gmove` case: if `!d.moved`, demote via `this.setState({ selEl:d.startId, selEls:[] })` (guides-clear behavior unchanged).
+- Task 5: add a check — click (no drag) one member of a multi-selection → single-select with resize handles.
