@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CardSmith — Card & Board Game Prototyping Maker</title>
-<meta name="description" content="CardSmith is a free, browser-based card maker for prototyping board and card games. Design cards at true print proportions, add art and text, and export print-ready PDF cut sheets, PNGs, and project files — no signup, everything stays in your browser.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2316a34a'/><path d='M16 7l2.6 5.7 6.2.6-4.7 4.2 1.4 6.1L16 26.4 10.5 23.6l1.4-6.1-4.7-4.2 6.2-.6z' fill='%23fff'/></svg>">
+<title>Deckling — Card & Board Game Prototyping Maker</title>
+<meta name="description" content="Deckling is a free, browser-based card maker for prototyping board and card games. Design cards at true print proportions, add art and text, and export print-ready PDF cut sheets, PNGs, and project files — no signup, everything stays in your browser. De ideas pequeñas, grandes juegos.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2322352D'/><path d='M9 5.4 L10 8 L12.6 9 L10 10 L9 12.6 L8 10 L5.4 9 L8 8 Z' fill='%23F8F3E8'/><path d='M16 25 C16 21 16 18 16 15' stroke='%236E8E47' stroke-width='1.8' fill='none' stroke-linecap='round'/><path d='M16 19 C13 16.4 9.4 16.4 7.8 18.6 C10 21.2 14 21.2 16 19 Z' fill='%23C6D68A'/><path d='M16 16 C17.6 10.8 22.2 8.3 25.8 8.3 C24.7 13.6 20.6 16.6 16 16 Z' fill='%236E8E47'/><ellipse cx='16' cy='25' rx='2.3' ry='1.7' fill='%23C6D68A'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Work+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,500&family=Cinzel:wght@400;600;700&family=Bebas+Neue&family=Roboto+Slab:wght@400;500;700&family=Caveat:wght@500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,500&family=Cinzel:wght@400;600;700&family=Bebas+Neue&family=Roboto+Slab:wght@400;500;700&family=Caveat:wght@500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <script src="vendor/react.production.min.js"></script>
 <script src="vendor/react-dom.production.min.js"></script>
 <script src="vendor/jspdf.umd.min.js"></script>
@@ -35,9 +35,8 @@ class CardMaker extends React.Component {
   history = { past: [], future: [] };
 
   THEMES = {
-    studio: { bg:'#eef0ec', panel:'#ffffff', panel2:'#f7f8f5', border:'#e2e5df', line:'#eceee9', text:'#1d2a24', sub:'#74837b', faint:'#9aa79f', canvas:'#dde2dc', chip:'#f0f2ee', input:'#f6f7f4', shadow:'0 1px 2px rgba(20,40,30,.06),0 8px 24px rgba(20,40,30,.06)' },
-    warm:   { bg:'#ece2d2', panel:'#fbf6ec', panel2:'#f4ebd9', border:'#e0d3bd', line:'#ebe0cd', text:'#3a3026', sub:'#8a7a62', faint:'#a99683', canvas:'#e3d7c1', chip:'#f0e7d4', input:'#f3ead8', shadow:'0 1px 2px rgba(80,60,30,.07),0 8px 24px rgba(80,60,30,.08)' },
-    dark:   { bg:'#15191b', panel:'#1c2226', panel2:'#222a2f', border:'#2d363c', line:'#262f34', text:'#eef2f0', sub:'#8fa099', faint:'#5f6e68', canvas:'#0f1315', chip:'#283036', input:'#222a2f', shadow:'0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.4)' }
+    light: { bg:'#f8f3e8', panel:'#fdfbf4', panel2:'#f2ecdd', border:'#e6dfcd', line:'#efe9db', text:'#22352d', sub:'#5e7059', faint:'#9aa792', canvas:'#eae3d2', chip:'#efe9db', input:'#f5f0e3', shadow:'0 1px 2px rgba(34,53,45,.06),0 8px 24px rgba(34,53,45,.07)' },
+    dark:  { bg:'#1a2822', panel:'#22352d', panel2:'#2a3b33', border:'#35493f', line:'#2d3f37', text:'#f1eee2', sub:'#9db0a2', faint:'#6b7e72', canvas:'#141f1a', chip:'#2e4038', input:'#2a3b33', shadow:'0 1px 2px rgba(0,0,0,.35),0 10px 30px rgba(0,0,0,.4)' }
   };
 
   FONTS = [
@@ -136,7 +135,7 @@ class CardMaker extends React.Component {
   };
 
   state = {
-    theme:'studio', accent:'#10b981',
+    theme:'light', accent:'#6e8e47',
     cards:[], selCard:null, selEl:null, editEl:null,
     selEls:[], marquee:null,
     side:'front', back:null, duplexBacks:false,
@@ -151,8 +150,8 @@ class CardMaker extends React.Component {
   MAXDIM = 1600;
 
   componentDidMount(){
-    const t = this.props.theme && this.THEMES[this.props.theme] ? this.props.theme : 'studio';
-    const accent = this.props.accent || '#10b981';
+    const t = this.props.theme && this.THEMES[this.props.theme] ? this.props.theme : 'light';
+    const accent = this.props.accent || '#6e8e47';
     const cards = this.buildSample();
     this.setState({ theme:t, accent, cards, selCard:cards[0].id, selEl:null }, ()=>this.measure());
     this._mv = (e)=>this.onPointerMove(e);
@@ -192,7 +191,7 @@ class CardMaker extends React.Component {
     else if(e.key==='Escape' && !this.state.editEl && (this.state.selEl||this.state.selEls.length)){ this.setState({ selEl:null, selEls:[] }); }
   }
 
-  th(){ return this.THEMES[this.state.theme]; }
+  th(){ return this.THEMES[this.state.theme] || this.THEMES.light; }
   ac(){ return this.state.accent; }
   uid(){ this._n=(this._n||0)+1; return 'e'+this._n+'_'+Date.now().toString(36).slice(-4); }
   clone(x){ return JSON.parse(JSON.stringify(x)); }
@@ -414,7 +413,7 @@ class CardMaker extends React.Component {
 
   templates(){
     const A=this.ac();
-    const ink='#1f2733', mut='#5a6675', panel='#eef2f6', panel2='#e4ebf2';
+    const ink='#22352d', mut='#5e7059', panel='#f2ecdd', panel2='#eae3d2';
     const T={};
     const mk=(W,H)=>{
       const P=(fx,fy,fw,fh)=>({x:+(fx*W).toFixed(1),y:+(fy*H).toFixed(1),w:+(fw*W).toFixed(1),h:+(fh*H).toFixed(1)});
@@ -428,7 +427,7 @@ class CardMaker extends React.Component {
       {id:id(),type:'text',...P(.62,.05,.3,.082),text:'5',font:"'Cinzel',serif",size:sz(.06),weight:700,color:'#ffffff',align:'right',italic:false,lineH:1,letter:0,rotation:0,opacity:1},
       {id:id(),type:'image',...P(.06,.155,.88,.42),src:null,fit:'cover',radius:1.2,rotation:0,opacity:1},
       {id:id(),type:'text',...P(.06,.585,.88,.048),text:'Creature — Type',font:"'Work Sans',sans-serif",size:sz(.03),weight:600,color:mut,align:'left',italic:true,lineH:1,letter:.2,rotation:0,opacity:1},
-      {id:id(),type:'shape',shape:'rect',...P(.06,.64,.88,.3),fill:panel,stroke:'#cfd8e2',strokeWidth:.3,radius:2,rotation:0,opacity:1},
+      {id:id(),type:'shape',shape:'rect',...P(.06,.64,.88,.3),fill:panel,stroke:'#e0d8c4',strokeWidth:.3,radius:2,rotation:0,opacity:1},
       {id:id(),type:'text',...P(.1,.665,.8,.25),text:'Rules text and flavor go here. Drag any element to reposition, resize from the corners.',font:"'Work Sans',sans-serif",size:sz(.027),weight:400,color:ink,align:'left',italic:false,lineH:1.3,letter:0,rotation:0,opacity:1},
       {id:id(),type:'text',...P(.06,.95,.5,.04),text:'001 / 060',font:"'Space Mono',monospace",size:sz(.022),weight:400,color:mut,align:'left',italic:false,lineH:1,letter:0,rotation:0,opacity:1}
     ];};
@@ -441,7 +440,7 @@ class CardMaker extends React.Component {
       {id:id(),type:'text',...P(.06,.05,.88,.08),text:'Unit Name',font:"'Cinzel',serif",size:sz(.05),weight:700,color:ink,align:'center',italic:false,lineH:1,letter:.5,rotation:0,opacity:1},
       {id:id(),type:'image',...P(.1,.15,.8,.5),src:null,fit:'cover',radius:2,rotation:0,opacity:1},
       {id:id(),type:'text',...P(.06,.67,.88,.06),text:'A short description of this unit.',font:"'Work Sans',sans-serif",size:sz(.026),weight:400,color:mut,align:'center',italic:true,lineH:1.2,letter:0,rotation:0,opacity:1},
-      ...chip(0,'ATK','4','#c0492b'), ...chip(1,'DEF','3','#2f6fb0'), ...chip(2,'COST','2','#caa23a')
+      ...chip(0,'ATK','4','#b0562f'), ...chip(1,'DEF','3','#6e8e47'), ...chip(2,'COST','2','#b0893a')
     ];};
     T.playing=(W,H)=>{ const {P,id,sz}=mk(W,H); return [
       {id:id(),type:'text',...P(.05,.04,.2,.1),text:'A',font:"'Playfair Display',serif",size:sz(.08),weight:700,color:'#b3261e',align:'center',italic:false,lineH:1,letter:0,rotation:0,opacity:1},
@@ -469,7 +468,7 @@ class CardMaker extends React.Component {
       {id:id(),type:'shape',shape:'circle',...P(.74,.04,.2,.14),fill:A,stroke:'#000',strokeWidth:0,radius:0,rotation:0,opacity:1},
       {id:id(),type:'text',...P(.74,.06,.2,.1),text:'3',font:"'Cinzel',serif",size:sz(.06),weight:700,color:'#fff',align:'center',italic:false,lineH:1,letter:0,rotation:0,opacity:1},
       {id:id(),type:'icon',...P(.34,.24,.32,.28),icon:'bolt',color:A,rotation:0,opacity:1},
-      {id:id(),type:'shape',shape:'rect',...P(.06,.6,.88,.34),fill:panel,stroke:'#cfd8e2',strokeWidth:.3,radius:2,rotation:0,opacity:1},
+      {id:id(),type:'shape',shape:'rect',...P(.06,.6,.88,.34),fill:panel,stroke:'#e0d8c4',strokeWidth:.3,radius:2,rotation:0,opacity:1},
       {id:id(),type:'text',...P(.1,.63,.8,.28),text:'Deal damage to target. Then describe the secondary effect of the spell.',font:"'Work Sans',sans-serif",size:sz(.028),weight:400,color:ink,align:'left',italic:false,lineH:1.3,letter:0,rotation:0,opacity:1}
     ];};
     T.token=(W,H)=>{ const {P,id,sz}=mk(W,H); return [
@@ -494,19 +493,23 @@ class CardMaker extends React.Component {
     const t=this.templates();
     const mkCard=(typeId, tid, over)=>{
       const ty=this.TYPES[typeId];
-      const c={ id:this.uid(), name:'Card', qty:1, typeId, w:ty.w, h:ty.h, bg:{type:'solid',color:'#ffffff',from:'#ffffff',to:'#e6ecf3',angle:135}, border:{width:1,color:'#1c2230',radius:3}, elements: tid==='blank'?[]:t[tid](ty.w,ty.h) };
+      const c={ id:this.uid(), name:'Card', qty:1, typeId, w:ty.w, h:ty.h, bg:{type:'solid',color:'#ffffff',from:'#fdfbf4',to:'#eae3d2',angle:135}, border:{width:1,color:'#22352d',radius:3}, elements: tid==='blank'?[]:t[tid](ty.w,ty.h) };
       return {...c, ...(over||{})};
     };
-    const c1=mkCard('poker','classic'); c1.name='Ember Drake'; c1.qty=3;
-    c1.bg={type:'gradient',from:'#fff7ed',to:'#ffd9b8',angle:160,color:'#fff7ed'};
-    c1.elements[1].text='Ember Drake'; c1.elements[2].text='6';
-    c1.elements[4].text='Dragon — Fire'; c1.elements[6].text='Flying. When Ember Drake attacks, deal 1 damage to any target.';
-    const c2=mkCard('poker','stat'); c2.name='Stoneguard'; c2.qty=2;
-    const c3=mkCard('tarot','character'); c3.name='Mira the Bold';
-    c3.elements[3].text='Mira the Bold'; c3.elements[4].text='Ranger · Verdant Pact';
-    const c4=mkCard('poker','spell'); c4.name='Chain Bolt';
-    c4.elements[0].text='Chain Bolt'; c4.elements[2].text='3';
-    const c5=mkCard('mini','token'); c5.name='Goblin'; c5.qty=6; c5.elements[2].text='GOBLIN';
+    const c1=mkCard('poker','classic'); c1.name='Verdant Sprout'; c1.qty=3;
+    c1.bg={type:'gradient',from:'#f8f3e8',to:'#dfeac0',angle:160,color:'#f8f3e8'};
+    c1.elements[1].text='Verdant Sprout'; c1.elements[2].text='2';
+    c1.elements[4].text='Seedling — Growth'; c1.elements[6].text='When Verdant Sprout enters the garden, place a +1 growth counter on target ally. Nurture: draw a card.';
+    const c2=mkCard('poker','stat'); c2.name='Oak Sentinel'; c2.qty=2;
+    c2.elements[0].text='Oak Sentinel'; c2.elements[2].text='A steadfast guardian rooted at the grove’s edge.';
+    const c3=mkCard('tarot','character'); c3.name='Fern the Cultivator';
+    c3.elements[3].text='Fern the Cultivator'; c3.elements[4].text='Botanist · Verdant Pact';
+    c3.elements[5].text='Ability: at dawn, sprout a Sapling token in an empty row you control.';
+    const c4=mkCard('poker','spell'); c4.name='Bloom Burst';
+    c4.elements[0].text='Bloom Burst'; c4.elements[2].text='2'; c4.elements[3].icon='leaf';
+    c4.elements[5].text='Give +2/+2 to every Seedling you control until end of turn.';
+    const c5=mkCard('mini','token'); c5.name='Sapling'; c5.qty=6;
+    c5.elements[1].icon='leaf'; c5.elements[2].text='SAPLING';
     return [c1,c2,c3,c4,c5];
   }
 
@@ -849,13 +852,13 @@ class CardMaker extends React.Component {
         });
       }
     }
-    pdf.save('card-deck-'+pageId+'.pdf');
+    pdf.save('deckling-deck-'+pageId+'.pdf');
     this.toast('PDF: '+placed+' cards exported'+(duplex?' (double-sided)':''));
   }
 
   saveJSON(){
     const data={ app:'card-maker', version:2, cards:this.state.cards, back:this.state.back, theme:this.state.theme, accent:this.state.accent, assets:this.state.assets };
-    this.download('card-project.json', new Blob([JSON.stringify(data)],{type:'application/json'}));
+    this.download('deckling-project.json', new Blob([JSON.stringify(data)],{type:'application/json'}));
     this.toast('Project saved');
   }
   loadJSON(file){
@@ -864,7 +867,7 @@ class CardMaker extends React.Component {
       const d=JSON.parse(r.result);
       if(!d.cards) throw 0;
       this.history={past:[],future:[]}; this.imgCache={};
-      this.setState({ cards:d.cards, back:d.back||null, side:'front', selCard:d.cards[0]&&d.cards[0].id, selEl:null, selEls:[], marquee:null, editEl:null, theme:d.theme||this.state.theme, accent:d.accent||this.state.accent, assets:Array.isArray(d.assets)?d.assets:[] });
+      this.setState({ cards:d.cards, back:d.back||null, side:'front', selCard:d.cards[0]&&d.cards[0].id, selEl:null, selEls:[], marquee:null, editEl:null, theme:this.THEMES[d.theme]?d.theme:this.state.theme, accent:d.accent||this.state.accent, assets:Array.isArray(d.assets)?d.assets:[] });
       this.toast('Project loaded');
     }catch(e){ this.toast('Invalid project file'); } };
     r.readAsText(file);
@@ -1108,22 +1111,32 @@ class CardMaker extends React.Component {
         children:[ o.icon?(typeof o.icon==='string'?this.uIcon(o.icon,15,'currentColor'):o.icon):null, o.label?h('span',{key:'l'},o.label):null ].filter(Boolean)})));
   }
 
+  logoMark(size){
+    const h=this.h;
+    return h('svg',{width:size,height:size,viewBox:'0 0 32 32',style:{display:'block',flex:'none'}},
+      h('rect',{key:'bg',width:32,height:32,rx:7,fill:'#22352d'}),
+      h('path',{key:'spk',d:'M9 5.4 L10 8 L12.6 9 L10 10 L9 12.6 L8 10 L5.4 9 L8 8 Z',fill:'#f8f3e8'}),
+      h('path',{key:'stm',d:'M16 25 C16 21 16 18 16 15',stroke:'#6e8e47',strokeWidth:1.8,fill:'none',strokeLinecap:'round'}),
+      h('path',{key:'lf1',d:'M16 19 C13 16.4 9.4 16.4 7.8 18.6 C10 21.2 14 21.2 16 19 Z',fill:'#c6d68a'}),
+      h('path',{key:'lf2',d:'M16 16 C17.6 10.8 22.2 8.3 25.8 8.3 C24.7 13.6 20.6 16.6 16 16 Z',fill:'#6e8e47'}),
+      h('ellipse',{key:'sd',cx:16,cy:25,rx:2.3,ry:1.7,fill:'#c6d68a'}));
+  }
   renderHeader(){
     const t=this.th(), h=this.h, A=this.ac();
     const themeBtn=(id,label)=>h('button',{key:id,onClick:()=>this.setState({theme:id}),
-      style:{padding:'5px 11px',borderRadius:7,border:'none',background:this.state.theme===id?A:'transparent',
+      style:{padding:'5px 13px',borderRadius:7,border:'none',background:this.state.theme===id?A:'transparent',
         color:this.state.theme===id?'#fff':t.sub,fontSize:11.5,fontWeight:600,cursor:'pointer',transition:'all .12s'}},label);
     return h('div',{style:{height:54,flex:'none',display:'flex',alignItems:'center',gap:14,padding:'0 16px',background:t.panel,borderBottom:'1px solid '+t.border,zIndex:5}},
-      h('div',{style:{display:'flex',alignItems:'center',gap:10}},
-        h('div',{style:{width:30,height:30,borderRadius:8,background:A,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff'}},this.uIcon('cards',18,'#fff',1.8)),
-        h('div',{style:{fontWeight:800,fontSize:16,letterSpacing:'-.3px',color:t.text}},'Card',h('span',{style:{color:A}},'Smith'))),
+      h('div',{style:{display:'flex',alignItems:'center',gap:9},title:'Deckling — de ideas pequeñas, grandes juegos'},
+        this.logoMark(30),
+        h('div',{style:{fontFamily:"'Fraunces',Georgia,serif",fontWeight:600,fontSize:20,letterSpacing:'-.2px',color:t.text}},'Deckling')),
       h('div',{style:{width:1,height:24,background:t.border}}),
       h('div',{style:{display:'flex',gap:6}},
         this.iconBtn('undo',()=>this.undo(),{title:'Undo (⌘Z)',disabled:!this.history.past.length}),
         this.iconBtn('redo',()=>this.redo(),{title:'Redo (⌘⇧Z)',disabled:!this.history.future.length})),
       h('div',{style:{flex:1}}),
       h('div',{style:{display:'flex',background:t.input,borderRadius:9,padding:3,border:'1px solid '+t.border}},
-        themeBtn('studio','Studio'),themeBtn('warm','Warm'),themeBtn('dark','Dark')),
+        themeBtn('light','Light'),themeBtn('dark','Dark')),
       h('button',{onClick:()=>this.exportPDF('letter'),
         style:{display:'inline-flex',alignItems:'center',gap:7,padding:'8px 15px',borderRadius:9,border:'none',background:A,color:'#fff',fontWeight:700,fontSize:13,cursor:'pointer',boxShadow:'0 2px 8px '+A+'55'}},
         this.uIcon('download',16,'#fff'),'Export PDF'));
@@ -1392,7 +1405,7 @@ class CardMaker extends React.Component {
       }
     } else if(el.type==='image'){
       inner = el.src ? h('img',{src:el.src,style:{width:'100%',height:'100%',objectFit:el.fit,borderRadius:(el.radius||0)*s,pointerEvents:'none',display:'block'}})
-        : h('div',{style:{width:'100%',height:'100%',borderRadius:(el.radius||0)*s,border:'1.5px dashed #b9c2cc',background:'#eef2f5',display:'flex',alignItems:'center',justifyContent:'center',color:'#9aa7b2',pointerEvents:'none'}},this.uIcon('image',Math.min(el.w,el.h)*s*0.4,'#aab4be',1.3));
+        : h('div',{style:{width:'100%',height:'100%',borderRadius:(el.radius||0)*s,border:'1.5px dashed #d3cbb6',background:'#f2ecdd',display:'flex',alignItems:'center',justifyContent:'center',color:'#b3ab97',pointerEvents:'none'}},this.uIcon('image',Math.min(el.w,el.h)*s*0.4,'#b8b09b',1.3));
     } else if(el.type==='icon'){
       inner=h('div',{style:{width:'100%',height:'100%',color:el.color,pointerEvents:'none'}},this.gIcon(el.icon,'100%',el.color));
     } else if(el.type==='shape'){
@@ -1651,7 +1664,7 @@ class CardMaker extends React.Component {
 
   render(){
     const h=this.h, t=this.th();
-    if(!this.state.cards.length) return h('div',{className:'cmsplash',style:{background:t?t.bg:'#eee'}},'CardSmith');
+    if(!this.state.cards.length) return h('div',{className:'cmsplash',style:{background:t?t.bg:'#eee',fontFamily:"'Fraunces',Georgia,serif"}},'Deckling');
     return h('div',{style:{display:'flex',flexDirection:'column',height:'100vh',background:t.bg,color:t.text,fontFamily:"'Plus Jakarta Sans',sans-serif"}},
       this.renderHeader(),
       h('div',{style:{flex:1,display:'flex',minHeight:0}},
@@ -1661,7 +1674,7 @@ class CardMaker extends React.Component {
       this.renderModal(),
       this.renderSeriesModal(),
       this.renderIconLib(),
-      this.state.toast?h('div',{style:{position:'fixed',bottom:24,left:'50%',transform:'translateX(-50%)',zIndex:60,background:'#1d2a24',color:'#fff',padding:'10px 18px',borderRadius:10,fontSize:13,fontWeight:600,boxShadow:'0 8px 30px rgba(0,0,0,.3)'}},this.state.toast):null);
+      this.state.toast?h('div',{style:{position:'fixed',bottom:24,left:'50%',transform:'translateX(-50%)',zIndex:60,background:'#22352d',color:'#f1eee2',padding:'10px 18px',borderRadius:10,fontSize:13,fontWeight:600,boxShadow:'0 8px 30px rgba(0,0,0,.3)'}},this.state.toast):null);
   }
 }
 

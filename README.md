@@ -1,13 +1,13 @@
-# CardSmith
+# Deckling
 
 **A free, browser-based card maker for prototyping board & card games.**
-Design cards at true print proportions, drop in art, text and icons, and export
-print-ready PDF cut sheets, PNGs and project files — no signup, no install,
-everything stays in your browser.
+*De ideas pequeñas, grandes juegos.* Design cards at true print proportions, drop
+in art, text and icons, and export print-ready PDF cut sheets, PNGs and project
+files — no signup, no install, everything stays in your browser.
 
-🔗 **Live app:** https://sacaste.github.io/cardsmith/
+🔗 **Live app:** https://sacaste.github.io/deckling/
 
-![CardSmith editor](docs/screenshot.png)
+![Deckling editor](docs/screenshot.png)
 
 ## Features
 
@@ -15,23 +15,23 @@ everything stays in your browser.
 - **Free element editing** — text, images, icons and shapes; move, resize, rotate, layer, and set opacity, with undo/redo.
 - **Multi-select** — shift-click or marquee to select many elements, then move the group, align, distribute, duplicate or delete them together.
 - **Snapping & alignment guides** — smart guides while dragging (hold <kbd>Alt</kbd> to bypass), plus align-to-card buttons.
-- **Templates & icons** — 8 starting card templates and a built-in icon library.
+- **Templates & icons** — 8 starting card templates and a built-in icon library, styled in the Deckling palette.
 - **Card backs & double-sided export** — one shared back per deck with mirrored, print-ready duplex PDF pages.
 - **Batch tools** — a deck panel with per-card quantities, a Series Generator, and CSV batch fill.
 - **Export anywhere** — PDF cut sheets (Letter / A4), PNG (single card or all), and JSON save/load.
-- **Themes** — Studio, Warm and Dark.
+- **Themes** — Light and Dark.
 
 ## Getting started
 
-CardSmith is a single static page — there is nothing to build or install.
+Deckling is a single static page — there is nothing to build or install.
 
-**Just use it:** open the [live app](https://sacaste.github.io/cardsmith/).
+**Just use it:** open the [live app](https://sacaste.github.io/deckling/).
 
 **Run it locally:**
 
 ```bash
-git clone https://github.com/SaCaste/cardsmith.git
-cd cardsmith
+git clone https://github.com/SaCaste/deckling.git
+cd deckling
 python -m http.server 8987   # or any static file server
 # then open http://localhost:8987/index.html
 ```
